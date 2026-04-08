@@ -1,14 +1,62 @@
-# astrbot-plugin-helloworld
+# astrbot-plugin-eve-esi
 
-AstrBot 插件模板 / A template plugin for AstrBot plugin feature
+EVE Online ESI API 调用插件，支持 EVE 国服（晨曦），提供物品信息查询、市场价格查询和简称管理功能。
 
-> [!NOTE]
-> This repo is just a template of [AstrBot](https://github.com/AstrBotDevs/AstrBot) Plugin.
-> 
-> [AstrBot](https://github.com/AstrBotDevs/AstrBot) is an agentic assistant for both personal and group conversations. It can be deployed across dozens of mainstream instant messaging platforms, including QQ, Telegram, Feishu, DingTalk, Slack, LINE, Discord, Matrix, etc. In addition, it provides a reliable and extensible conversational AI infrastructure for individuals, developers, and teams. Whether you need a personal AI companion, an intelligent customer support agent, an automation assistant, or an enterprise knowledge base, AstrBot enables you to quickly build AI applications directly within your existing messaging workflows.
+## 功能特点
 
-# Supports
+- **物品信息查询**：通过物品名称或ID查询物品详细信息
+- **市场价格查询**：查询物品在吉他星系的市场价格
+- **中文名称搜索**：通过市场中心API支持中文物品名称搜索
+- **涂装过滤**：自动过滤搜索结果中的涂装（SKIN）
+- **简称管理**：支持添加、查看和删除物品简称
+- **多结果展示**：搜索结果前5个显示价格，剩余显示名称
+- **价格格式化**：千分位分隔符+简化表示（亿/万）
+
+## 安装方法
+
+1. 将插件目录复制到 AstrBot 的 `data/plugins` 目录下
+2. 启动 AstrBot，插件会自动加载
+
+## 使用方法
+
+### 核心命令
+
+#### 基础命令
+- `/测试` - 测试EVE API连通性
+- `/帮助` - 显示帮助信息
+
+#### 物品查询
+- `/属性 <物品名称或ID>` - 查看物品具体信息
+  - 示例：`/属性 乌鸦` 或 `/属性 670`
+- `/吉他 <物品名称或ID>` - 查看物品在吉他星系的市场价格
+  - 示例：`/吉他 乌鸦` 或 `/吉他 670`
+
+#### 简称管理
+- `/简称 <全称>=<简称>` - 添加物品简称
+  - 示例：`/简称 鱼鹰级海军型=海鱼鹰`
+- `/简称列表 <全称或简称>` - 查看指定全称的所有简称
+  - 示例：`/简称列表 鱼鹰级海军型` 或 `/简称列表 海鱼鹰`
+- `/简称删除 <简称>` - 删除已添加的简称
+  - 示例：`/简称删除 海鱼鹰`
+
+## 技术实现
+
+- 使用 EVE 国服 ESI API 进行数据获取
+- 使用 EVE 国服市场中心API进行物品搜索
+- 使用 aiohttp 进行异步网络请求
+- 简称数据持久化存储在 data/aliases.json
+- 支持涂装自动过滤
+
+## 注意事项
+
+- 支持中文名称（如三钛合金）、英文名称（如Tritanium）或物品ID（如34）
+- 伊甸币（PLEX）查询：由于市场改版暂不支持
+- 模糊搜索只支持列出前10个物品，并已自动过滤涂装，请使用详细搜索，或自行添加简称
+- 一个全称可以有多个简称，搜索任意简称都会自动转换为全称
+
+## 支持
 
 - [AstrBot Repo](https://github.com/AstrBotDevs/AstrBot)
 - [AstrBot Plugin Development Docs (Chinese)](https://docs.astrbot.app/dev/star/plugin-new.html)
-- [AstrBot Plugin Development Docs (English)](https://docs.astrbot.app/en/dev/star/plugin-new.html)
+- [EVE 国服 ESI API Docs](https://ali-esi.evepc.163.com/ui/)
+- [EVE 国服市场中心](https://www.ceve-market.org/)

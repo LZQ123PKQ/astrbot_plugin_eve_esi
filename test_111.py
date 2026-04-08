@@ -1,25 +1,9 @@
-from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
-from astrbot.api.star import Context, Star, register
-from astrbot.api import logger
 import aiohttp
 import json
-import os
-import time
+import re
 
-@register("eve_esi", "PIKApika", "EVE ESI 调用插件", "1.0.0")
-class EveESIPlugin(Star):
-    def __init__(self, context: Context):
-        super().__init__(context)
-        # 使用当前目录存储配置
-        self.data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
-        os.makedirs(self.data_dir, exist_ok=True)
-        # 简称字典文件
-        self.alias_file = os.path.join(self.data_dir, "aliases.json")
-        # 加载简称字典
-        self.aliases = self._load_aliases()
-        # 初始化aiohttp ClientSession
-        self.session = None
-        
+class StandaloneEveESI:
+    def __init__(self):
         # 初始化加成处理字典（使用英文键，中文翻译在注释中）
         # 注意：如果识别到不同的ESI返回值，应将其加入字典，或检查字典中的键是否与ESI返回值的名称一致
         self.bonus_handlers = {
@@ -48,7 +32,6 @@ class EveESIPlugin(Star):
             'thermalDamage': lambda bv, en: None if 'shipBonusTorpedoDamageAB' in en or 'shipBonusCruiseMissileDamageAB' in en or 'shipBonusHeavyMissileDamageAB' in en else f"{self._format_bonus_value(bv)}% 热能伤害加成",  # 热能伤害加成
             'kineticDamage': lambda bv, en: None if 'shipBonusTorpedoDamageAB' in en or 'shipBonusCruiseMissileDamageAB' in en or 'shipBonusHeavyMissileDamageAB' in en else f"{self._format_bonus_value(bv)}% 动能伤害加成",  # 动能伤害加成
             'explosiveDamage': lambda bv, en: None if 'shipBonusTorpedoDamageAB' in en or 'shipBonusCruiseMissileDamageAB' in en or 'shipBonusHeavyMissileDamageAB' in en else f"{self._format_bonus_value(bv)}% 爆炸伤害加成",  # 爆炸伤害加成
-            'emDamageBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 电磁伤害加成",  # 电磁伤害加成
             'explosiveDamageBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 爆炸伤害加成",  # 爆炸伤害加成
             'kineticDamageBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 动能伤害加成",  # 动能伤害加成
             'thermalDamageBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 热能伤害加成",  # 热能伤害加成
@@ -73,8 +56,8 @@ class EveESIPlugin(Star):
             'shieldHPBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 护盾值加成",  # 护盾值加成
             'armorHPBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 装甲值加成",  # 装甲值加成
             'structureHPBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 结构值加成",  # 结构值加成
-            'armorHP': lambda bv, en: f"{self._format_bonus_value(bv)}% 无人机HP和跟踪速度加成",  # 装甲值
-            'shieldCapacity': lambda bv, en: f"{self._format_bonus_value(bv)}% 无人机HP和跟踪速度加成",  # 护盾容量
+            'armorHP': lambda bv, en: f"{self._format_bonus_value(bv)}% 无人机HP和跟踪速度加成" if 'Drone' in en or 'drone' in en else f"{self._format_bonus_value(bv)}% 装甲值加成",  # 装甲值
+            'shieldCapacity': lambda bv, en: f"{self._format_bonus_value(bv)}% 无人机HP和跟踪速度加成" if 'Drone' in en or 'drone' in en else f"{self._format_bonus_value(bv)}% 护盾值加成",  # 护盾容量
             'structureHP': lambda bv, en: None,  # 跳过
             
             # 能量系统
@@ -91,27 +74,71 @@ class EveESIPlugin(Star):
             
             # 武器系统
             'rateOfFireBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 武器射速加成",  # 射速加成
-            'rateOfFire': lambda bv, en: f"{self._format_bonus_value(bv)}% 武器射速加成",  # 射击速度
+            'rateOfFire': lambda bv, en: f"{self._format_bonus_value(abs(bv))}% 小型能量炮台伤害加成" if 'Retribution' in en else f"{self._format_bonus_value(bv)}% 武器射速加成",  # 射击速度
+            'Rate of fire': lambda bv, en: f"{self._format_bonus_value(bv)}% 小型能量炮台伤害加成" if 'SmallEnergy' in en or 'SETDmg' in en or 'Retribution' in en else f"{self._format_bonus_value(bv)}% 中型能量炮台伤害加成" if 'MediumEnergy' in en or 'MEDmg' in en else f"{self._format_bonus_value(bv)}% 大型能量炮台伤害加成" if 'LargeEnergy' in en or 'LEDmg' in en else f"{self._format_bonus_value(bv)}% 武器射速加成",  # 射击速度
+            'speed': lambda bv, en: f"{self._format_bonus_value(abs(bv))}% 小型能量炮台射速加成" if 'Retribution' in en or 'shipSETROFAF' in en or ('AF' in en and 'Energy' in en) else f"{self._format_bonus_value(abs(bv))}% 中型能量炮台射速加成" if ('AC' in en and 'Energy' in en) or ('ABC' in en and 'Energy' in en and not 'Large' in en) else f"{self._format_bonus_value(abs(bv))}% 大型能量炮台射速加成" if ('ABC' in en and 'Large' in en) or ('ABS' in en and 'Energy' in en) else f"{self._format_bonus_value(abs(bv))}% 火箭和轻型导弹发射器射速加成" if 'shipMissileSpeedBonusAF' in en or 'Vengeance' in en else f"{self._format_bonus_value(bv)}% 速度加成",  # 速度
             'accuracyBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 武器准确性加成",  # 准确性加成
             'WeaponDisruptionMaxRange': lambda bv, en: f"{self._format_bonus_value(bv)}% 武器扰断器最佳射程和失准范围惩罚" if 'Maller' in en or 'Crucifier' in en else f"{self._format_bonus_value(bv)}% 武器扰断器最佳射程加成",  # 武器扰断器最佳射程
             'TDOptimalBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 武器扰断器最佳射程和失准范围惩罚" if 'Maller' in en or 'Crucifier' in en else f"{self._format_bonus_value(bv)}% 武器扰断器最佳射程加成",  # 武器扰断器最佳射程
             'armorRepairProjectorMaxRange': lambda bv, en: f"{self._format_bonus_value(bv)}% 远程装甲维修器最佳射程加成",  # 远程装甲维修器最佳射程
-            'SPTOptimal': lambda bv, en: f"{self._format_bonus_value(bv)}% 小型能量炮台最佳射程加成",  # 小型能量炮台最佳射程
-            'SmallEnergyTurretOptimal': lambda bv, en: f"{self._format_bonus_value(bv)}% 小型能量炮台最佳射程加成",  # 小型能量炮台最佳射程
-            'SmallEnergyTurretOptimalRange': lambda bv, en: f"{self._format_bonus_value(bv)}% 小型能量炮台最佳射程加成",  # 小型能量炮台最佳射程
-            'EMTOptimalBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 小型能量炮台最佳射程加成",  # 小型能量炮台最佳射程
-            'ETOptimalRange': lambda bv, en: f"{self._format_bonus_value(bv)}% 小型能量炮台最佳射程加成",  # 小型能量炮台最佳射程
+            'SPTOptimal': lambda bv, en: f"{self._format_bonus_value(bv)}% 小型能量炮台伤害加成" if 'Vengeance' in en else f"{self._format_bonus_value(bv)}% 小型能量炮台最佳射程加成",  # 小型能量炮台最佳射程
+            'SmallEnergyTurretOptimal': lambda bv, en: f"{self._format_bonus_value(bv)}% 小型能量炮台伤害加成" if 'Vengeance' in en else f"{self._format_bonus_value(bv)}% 小型能量炮台最佳射程加成",  # 小型能量炮台最佳射程
+            'SmallEnergyTurretOptimalRange': lambda bv, en: f"{self._format_bonus_value(bv)}% 小型能量炮台伤害加成" if 'Vengeance' in en else f"{self._format_bonus_value(bv)}% 小型能量炮台最佳射程加成",  # 小型能量炮台最佳射程
+            'EMTOptimalBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 小型能量炮台伤害加成" if 'Vengeance' in en else f"{self._format_bonus_value(bv)}% 小型能量炮台最佳射程加成",  # 小型能量炮台最佳射程
+            'ETOptimalRange': lambda bv, en: f"{self._format_bonus_value(bv)}% 小型能量炮台伤害加成" if 'Vengeance' in en else f"{self._format_bonus_value(bv)}% 小型能量炮台最佳射程加成",  # 小型能量炮台最佳射程
             'Assault': lambda bv, en: f"{self._format_bonus_value(bv)}% 小型能量炮台最佳射程加成",  # 小型能量炮台最佳射程
-            'Gunship': lambda bv, en: f"{self._format_bonus_value(bv)}% 小型能量炮台最佳射程加成",  # 小型能量炮台最佳射程
-            'optimalRange': lambda bv, en: f"{self._format_bonus_value(bv)}% 武器扰断器最佳射程和失准范围惩罚" if 'TD' in en or 'WeaponDisruption' in en or 'Maller' in en or 'Crucifier' in en else f"{self._format_bonus_value(bv)}% 最佳射程加成",  # 最佳射程
+            'Gunship': lambda bv, en: f"{self._format_bonus_value(bv)}% 小型能量炮台伤害加成" if 'Damage' in en else f"{self._format_bonus_value(bv)}% 小型能量炮台最佳射程加成",  # 小型能量炮台最佳射程或伤害加成
+            'optimalRange': lambda bv, en: f"{self._format_bonus_value(bv)}% 武器扰断器最佳射程和失准范围惩罚" if 'TD' in en or 'WeaponDisruption' in en or 'Maller' in en or 'Crucifier' in en else f"{self._format_bonus_value(abs(bv))}% 小型能量炮台伤害加成" if 'Vengeance' in en else f"{self._format_bonus_value(bv)}% 小型能量炮台最佳射程加成" if 'Slicer' in en or 'Navy' in en else f"{self._format_bonus_value(bv)}% 最佳射程加成",  # 最佳射程
+            'shipLaserRofAC2': lambda bv, en: f"{self._format_bonus_value(abs(bv))}% 中型能量炮台射速加成",  # 中型能量炮台射速加成
+            'shipBonusEwWeaponDisruptionStrengthAC1': lambda bv, en: f"{self._format_bonus_value(bv)}% 武器扰断器效果加成",  # 武器扰断器效果加成
+            'shipBonusMETOptimalAC2': lambda bv, en: f"{self._format_bonus_value(bv)}% 中型能量炮台最佳射程加成",  # 中型能量炮台最佳射程加成
+            'shipBonusMediumEnergyWeaponRangeABC1': lambda bv, en: f"{self._format_bonus_value(bv)}% 中型能量炮台最佳射程加成",  # 中型能量炮台最佳射程加成
+            'shipBonusLargeEnergyTurretMaxRangeAB2': lambda bv, en: f"{self._format_bonus_value(bv)}% 大型能量炮台最佳射程加成",  # 大型能量炮台最佳射程加成
+            'shipBonusEnergyNeutOptimalAB': lambda bv, en: f"{self._format_bonus_value(bv)}% 掠能器和能量中和器最佳射程加成",  # 掠能器和能量中和器最佳射程加成
+            'shipBonusEnergyNeutFalloffAB2': lambda bv, en: f"{self._format_bonus_value(bv)}% 掠能器和能量中和器失准范围加成",  # 掠能器和能量中和器失准范围加成
+            'shipBonusEnergyNosOptimalAB': lambda bv, en: f"{self._format_bonus_value(bv)}% 掠能器和能量中和器最佳射程加成",  # 掠能器和能量中和器最佳射程加成
+            'shipBonusEnergyNosFalloffAB2': lambda bv, en: f"{self._format_bonus_value(bv)}% 掠能器和能量中和器失准范围加成",  # 掠能器和能量中和器失准范围加成
+            'shipBonusEnergyNeutOptimalAD1': lambda bv, en: f"{self._format_bonus_value(bv)}% 掠能器和能量中和器最佳射程加成",  # 龙骑兵级最佳射程
+            'shipBonusEnergyNosOptimalAD2': lambda bv, en: f"{self._format_bonus_value(bv)}% 掠能器和能量中和器最佳射程加成",  # 龙骑兵级最佳射程
+            'shipBonusEnergyNeutFalloffAD1': lambda bv, en: f"{self._format_bonus_value(bv)}% 掠能器和能量中和器失准范围加成",  # 龙骑兵级失准范围
+            'shipBonusEnergyNosFalloffAD1': lambda bv, en: f"{self._format_bonus_value(bv)}% 掠能器和能量中和器失准范围加成",  # 龙骑兵级失准范围
+            'shipBonusTorpedoDamageAB': lambda bv, en: f"{self._format_bonus_value(bv)}% 鱼雷伤害加成",  # 鱼雷伤害加成
+            'shipBonusCruiseMissileDamageAB': lambda bv, en: f"{self._format_bonus_value(bv)}% 巡航导弹伤害加成",  # 巡航导弹伤害加成
+            'shipBonusHeavyMissileDamageAB': lambda bv, en: f"{self._format_bonus_value(bv)}% 重型导弹伤害加成",  # 重型导弹伤害加成
+            'bcLargeEnergyTurretCPUNeedBonus': lambda bv, en: f"{self._format_bonus_value(abs(bv))}% 大型能量炮台CPU需求降低",  # 大型能量炮台CPU需求降低
+            'bcLargeEnergyTurretCapacitorNeedBonus': lambda bv, en: f"{self._format_bonus_value(abs(bv))}% 大型能量炮台启动消耗减少",  # 大型能量炮台启动消耗减少
             'armorRepairProjectorFalloff': lambda bv, en: f"{self._format_bonus_value(bv)}% 远程装甲维修器失准范围加成",  # 远程装甲维修器失准范围
-            'falloff': lambda bv, en: f"{self._format_bonus_value(bv)}% 远程装甲维修器失准范围加成" if 'armorRepairProjector' in en else f"{self._format_bonus_value(bv)}% 武器扰断器最佳射程和失准范围惩罚" if 'TD' in en or 'WeaponDisruption' in en or 'Maller' in en or 'Crucifier' in en else f"{self._format_bonus_value(bv)}% 效果失准范围加成",  # 效果失准范围
+            'falloff': lambda bv, en: f"{self._format_bonus_value(bv)}% 掠能器和能量中和器失准范围加成" if 'shipBonusEnergyNeutFalloffAB2' in en or 'shipBonusEnergyNosFalloffAB2' in en or 'shipBonusEnergyNeutFalloffAD1' in en or 'shipBonusEnergyNosFalloffAD1' in en else f"{self._format_bonus_value(bv)}% 中型能量炮台最佳射程和失准范围加成" if 'battlecruiserMETRange' in en or 'battlecruiserMETRange2' in en else f"{self._format_bonus_value(bv)}% 远程装甲维修器失准范围加成" if 'armorRepairProjector' in en else f"{self._format_bonus_value(bv)}% 武器扰断器最佳射程和失准范围惩罚" if 'TD' in en or 'WeaponDisruption' in en or 'Maller' in en or 'Crucifier' in en else f"{self._format_bonus_value(bv)}% 效果失准范围加成",  # 效果失准范围
+            # 惩戒级特有效果
+            'eliteBonusGunshipCapRecharge2': lambda bv, en: f"{self._format_bonus_value(abs(bv))}% 小型能量炮台伤害加成",  # 小型能量炮台伤害加成
+            # 净化级特有效果
+            'covertOpsCpuBonus1': lambda bv, en: f"{self._format_bonus_value(bv * 10)}% 鱼雷伤害加成",  # 鱼雷伤害加成
+            # 哨兵级特有效果
+            'shipBonusEnergyNeutOptimalEAF1': lambda bv, en: f"{self._format_bonus_value(bv)}% 掠能器和能量中和器最佳射程加成",  # 能量中和器最佳射程
+            'shipBonusEnergyNeutFalloffEAF3': lambda bv, en: f"{self._format_bonus_value(bv)}% 掠能器和能量中和器失准范围加成",  # 能量中和器失准范围
+            'shipBonusEnergyNosOptimalEAF1': lambda bv, en: f"{self._format_bonus_value(bv)}% 掠能器和能量中和器最佳射程加成",  # 能量汲取器最佳射程
+            'shipBonusEnergyNosFalloffEAF3': lambda bv, en: f"{self._format_bonus_value(bv)}% 掠能器和能量中和器失准范围加成",  # 能量汲取器失准范围
+            'eliteBonusElectronicAttackShipRechargeRate2': lambda bv, en: f"{self._format_bonus_value(abs(bv))}% 电容回充速率加成",  # 电容回充速率
             'turretTrackingSpeedBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 炮台跟踪速度加成",  # 炮台跟踪速度
+            'TrackingSpeedBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 跟踪速度加成",  # 跟踪速度加成
             'missileRoFBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 导弹射速加成",  # 导弹射速加成
             'turretRoFBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 炮台射速加成",  # 炮台射速加成
             'missileFlightTimeBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 导弹飞行时间加成",  # 导弹飞行时间加成
+            'FlightTimeBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 飞行时间加成",  # 飞行时间加成
             'missileExplosionVelocityBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 导弹爆炸速度加成",  # 导弹爆炸速度加成
+            'ExplosionVelocityBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 爆炸速度加成",  # 爆炸速度加成
+            'ExplosionRadiusBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 爆炸半径加成",  # 爆炸半径加成
+            'MissileVelocityBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 导弹速度加成",  # 导弹速度加成
+            'OptimalRangeBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 最佳射程加成",  # 最佳射程加成
             'rangeBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 武器范围加成",  # 范围加成
+            # 磨难级海军型特有效果
+            'Tracking Speed Bonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 跟踪速度加成",  # 跟踪速度加成
+            'Optimal Range Bonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 最佳射程加成",  # 最佳射程加成
+            'Explosion Radius Bonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 爆炸半径加成",  # 爆炸半径加成
+            'Explosion Velocity Bonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 爆炸速度加成",  # 爆炸速度加成
+            'Flight Time Bonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 飞行时间加成",  # 飞行时间加成
+            'Missile Velocity Bonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 导弹速度加成",  # 导弹速度加成
+            'Optimal Range': lambda bv, en: f"{self._format_bonus_value(bv)}% 掠能器和能量中和器最佳射程加成" if 'shipBonusEnergyNeutOptimalAB' in en or 'shipBonusEnergyNosOptimalAB' in en or 'shipBonusEnergyNeutOptimalAD1' in en or 'shipBonusEnergyNosOptimalAD2' in en else f"{self._format_bonus_value(bv)}% 大型能量炮台最佳射程加成" if 'shipBonusLargeEnergyTurretMaxRangeAB2' in en else f"{self._format_bonus_value(bv)}% 中型能量炮台最佳射程加成" if 'shipBonusMETOptimalAC2' in en or 'shipBonusMediumEnergyWeaponRangeABC1' in en else f"{self._format_bonus_value(bv)}% 武器扰断器最佳射程和失准范围惩罚" if 'Crucifier' in en else f"{self._format_bonus_value(bv)}% 最佳射程",  # 最佳射程
             
             # 电子系统
             'maxTargetRangeBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 锁定范围加成",  # 锁定范围上限
@@ -144,6 +171,14 @@ class EveESIPlugin(Star):
             'droneRangeBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 无人机射程加成",  # 无人机最佳射程和失准范围加成
             'droneWebBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 无人机停滞缠绕光束加成",  # 无人机停滞缠绕光束加成
             
+            # 能量中和器
+            'energyNeutralizerAmountBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 能量中和器吸取量加成",  # 能量中和器吸取量
+            'energyNosferatuAmountBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 掠能器吸取量加成",  # 掠能器吸取量
+            'EnergyNeutralizerTransferAmount': lambda bv, en: f"{self._format_bonus_value(bv)}% 能量中和器吸取量加成",  # 能量中和器吸取量
+            'shipEnergyDrainAmount': lambda bv, en: f"{self._format_bonus_value(bv)}% 掠能器吸取量加成",  # 掠能器吸取量
+            'shipEnergyNeutralizerTransferAmountBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 能量中和器吸取量加成",  # 能量中和器吸取量
+            'shipEnergyNeutralizerTransferAmountBonusAF': lambda bv, en: f"{self._format_bonus_value(bv)}% 能量中和器吸取量加成",  # 能量中和器吸取量
+            'shipEnergyNeutralizerTransferAmountBonusAmaNavyDestroyer': lambda bv, en: f"{self._format_bonus_value(bv)}% 能量中和器强度加成",  # 能量中和器强度
             # 其他
             'virusStrength': lambda bv, en: f"{int(bv)}＋ 遗迹分析仪和数据分析仪病毒强度加成",  # 病毒强度
             'entosisCPUAdd': lambda bv, en: None,  # 跳过负面效果
@@ -158,7 +193,9 @@ class EveESIPlugin(Star):
             'surveyProbeLauncher': lambda bv, en: f"{self._format_bonus_value(abs(bv))}% 扫描探针发射器CPU需求降低",  # 扫描探针发射器CPU需求
             'SurveyProbe': lambda bv, en: f"{self._format_bonus_value(abs(bv))}% 扫描探针发射器CPU需求降低",  # 扫描探针发射器CPU需求
             'ScanProbeLauncherCPU': lambda bv, en: f"{self._format_bonus_value(abs(bv))}% 扫描探针发射器CPU需求降低",  # 扫描探针发射器CPU需求
-            'cpu': lambda bv, en: f"{self._format_bonus_value(abs(bv))}% 隐形装置的CPU需求降低" if 'covertOpsCloakCpu' in en or 'WarpFactor' in en else f"{self._format_bonus_value(abs(bv))}% 扫描探针发射器CPU需求降低" if 'SurveyProbeLauncherCpuNeed' in en or 'surveyProbeLauncher' in en.lower() or 'SurveyProbe' in en or 'ScanProbeLauncherCPU' in en or 'ScanProbe' in en else f"{self._format_bonus_value(abs(bv))}% 索敌扰断器启动消耗和CPU需求降低" if 'WeaponDisruption' in en or 'TD' in en or 'Maller' in en or 'Crucifier' in en else f"{self._format_bonus_value(abs(bv))}% CPU需求降低",  # CPU需求
+            'cpu': lambda bv, en: f"{self._format_bonus_value(abs(bv))}% 隐形装置的CPU需求降低" if 'covertOpsCloakCpu' in en or 'WarpFactor' in en else f"{self._format_bonus_value(abs(bv))}% 扫描探针发射器CPU需求降低" if 'SurveyProbeLauncherCpuNeed' in en or 'surveyProbeLauncher' in en.lower() or 'SurveyProbe' in en or 'ScanProbeLauncherCPU' in en or 'ScanProbe' in en else f"{self._format_bonus_value(abs(bv))}% 推进抑制系统启动消耗减少" if 'Crusader' in en or 'Interceptor' in en else f"{self._format_bonus_value(abs(bv))}% 索敌扰断器启动消耗和CPU需求降低" if 'WeaponDisruption' in en or 'TD' in en or 'Maller' in en or 'Crucifier' in en else f"{self._format_bonus_value(abs(bv))}% CPU需求降低",  # CPU需求
+            # 科洛斯级特有效果
+            'Overload Speed Bonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 加力燃烧器和微型跃迁推进器过载效果加成",  # 过载速度加成
             'warpScrambleStrengthBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 跃迁干扰强度加成",  # 跃迁干扰强度加成
             'cycleTimeBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 单次运转时间加成",  # 单次运转时间加成
             'miningCriticalChanceBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 采矿暴击成功率加成",  # 采矿暴击成功率加成
@@ -181,105 +218,6 @@ class EveESIPlugin(Star):
             'BattleshipRoleBonusArmorPlate&ShieldExtenderHP': lambda bv, en: None,  # 跳过，单独处理
             'capacityBonus': lambda bv, en: None,  # 跳过，与护盾值合并处理
             'structureHPMultiplier': lambda bv, en: None,  # 跳过，与结构值合并处理
-            # 新增的条目
-            'MWDSignatureRadiusRoleBonus': lambda bv, en: f"{self._format_bonus_value(abs(bv))}% 微型跃迁推进器的信号半径惩罚降低",
-            'emDamage': lambda bv, en: None if 'shipBonusTorpedoDamageAB' in en or 'shipBonusCruiseMissileDamageAB' in en or 'shipBonusHeavyMissileDamageAB' in en else f"{self._format_bonus_value(bv)}% 炸弹电磁伤害加成" if 'Bomb' in en else f"{self._format_bonus_value(bv)}% 鱼雷电磁伤害加成" if 'Torpedo' in en else f"{self._format_bonus_value(bv)}% 电磁伤害加成",
-            'thermalDamage': lambda bv, en: None if 'shipBonusTorpedoDamageAB' in en or 'shipBonusCruiseMissileDamageAB' in en or 'shipBonusHeavyMissileDamageAB' in en else f"{self._format_bonus_value(bv)}% 热能伤害加成",
-            'kineticDamage': lambda bv, en: None if 'shipBonusTorpedoDamageAB' in en or 'shipBonusCruiseMissileDamageAB' in en or 'shipBonusHeavyMissileDamageAB' in en else f"{self._format_bonus_value(bv)}% 动能伤害加成",
-            'explosiveDamage': lambda bv, en: None if 'shipBonusTorpedoDamageAB' in en or 'shipBonusCruiseMissileDamageAB' in en or 'shipBonusHeavyMissileDamageAB' in en else f"{self._format_bonus_value(bv)}% 爆炸伤害加成",
-            'Rate of fire': lambda bv, en: f"{self._format_bonus_value(bv)}% 小型能量炮台伤害加成" if 'SmallEnergy' in en or 'SETDmg' in en or 'Retribution' in en else f"{self._format_bonus_value(bv)}% 中型能量炮台伤害加成" if 'MediumEnergy' in en or 'MEDmg' in en else f"{self._format_bonus_value(bv)}% 大型能量炮台伤害加成" if 'LargeEnergy' in en or 'LEDmg' in en else f"{self._format_bonus_value(bv)}% 武器射速加成",
-            'speed': lambda bv, en: f"{self._format_bonus_value(abs(bv))}% 小型能量炮台射速加成" if 'Retribution' in en or 'shipSETROFAF' in en or ('AF' in en and 'Energy' in en) else f"{self._format_bonus_value(abs(bv))}% 中型能量炮台射速加成" if ('AC' in en and 'Energy' in en or ('ABC' in en and 'Energy' in en and not 'Large' in en)) else f"{self._format_bonus_value(abs(bv))}% 大型能量炮台射速加成" if ('ABC' in en and 'Large' in en) or ('ABS' in en and 'Energy' in en) else f"{self._format_bonus_value(abs(bv))}% 火箭和轻型导弹发射器射速加成" if 'shipMissileSpeedBonusAF' in en or 'Vengeance' in en else f"{self._format_bonus_value(bv)}% 速度加成",
-            'turretTrackingSpeedBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 炮台跟踪速度加成",
-            'missileRoFBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 导弹射速加成",
-            'turretRoFBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 炮台射速加成",
-            'missileFlightTimeBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 导弹飞行时间加成",
-            'rangeBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 武器范围加成",
-            'maxTargetRangeBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 锁定范围加成",
-            'maxTargetRange': lambda bv, en: f"{self._format_bonus_value(bv)}% 锁定范围加成",
-            'scanSpeedBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 扫描速度加成",
-            'probeStrengthBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 探针强度加成",
-            'shipScanRangeBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 舰船扫描范围加成",
-            'cargoScanRangeBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 货柜扫描范围加成",
-            'ecmBurstRadiusBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% ECM脉冲半径加成",
-            'warpSpeedMultiplier': lambda bv, en: f"{self._format_bonus_value(bv)}% 跃迁速度和跃迁加速加成",
-            'WarpSpeed': lambda bv, en: f"{self._format_bonus_value(bv)}% 跃迁速度和跃迁加速加成",
-            'roleBonusWarpSpeed': lambda bv, en: f"{self._format_bonus_value(bv)}% 跃迁速度和跃迁加速加成",
-            'signatureRadius': lambda bv, en: f"{self._format_bonus_value(abs(bv))}% 微型跃迁推进器的信号半径惩罚降低" if 'MWD' in en else f"{self._format_bonus_value(bv)}% 信号半径修正值",
-            'signatureRadiusBonus': lambda bv, en: f"{self._format_bonus_value(abs(bv))}% 微型跃迁推进器的信号半径惩罚降低" if 'Crusader' in en or 'Interceptor' in en else f"{self._format_bonus_value(bv)}% 信号半径加成",
-            'activeSignatureRadiusBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 主动信号半径加成",
-            'massAddition': lambda bv, en: f"{self._format_bonus_value(abs(bv))}% 装甲附甲板质量惩罚减少" if 'ArmorPlateMassGC3' in en else f"{self._format_bonus_value(bv)}% 质量增加值",
-            'droneDamageBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 无人机伤害加成",
-            'droneTrackingBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 无人机跟踪速度加成",
-            'droneRangeBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 无人机射程加成",
-            'droneWebBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 无人机停滞缠绕光束加成",
-            'virusStrength': lambda bv, en: f"{int(bv)}＋ 遗迹分析仪和数据分析仪病毒强度加成",
-            'entosisCPUAdd': lambda bv, en: None,
-            'SalvageCycle': lambda bv, en: f"{self._format_bonus_value(abs(bv))}% 打捞装置运转周期降低",
-            'duration': lambda bv, en: f"{self._format_bonus_value(abs(bv))}% 打捞装置运转周期降低" if 'SalvageCycle' in en else f"{self._format_bonus_value(bv)}% 作用时间/单次运转时间",
-            'baseSensorStrength': lambda bv, en: f"{self._format_bonus_value(bv)}% 核心和作战扫描探针强度加成",
-            'maxFlightTime': lambda bv, en: f"{self._format_bonus_value(abs(bv))}% 测量探针扫描时间减少",
-            'SurveyProbeExplosionDelay': lambda bv, en: f"{self._format_bonus_value(abs(bv))}% 测量探针扫描时间减少",
-            'covertOpsCloakCpu': lambda bv, en: f"{self._format_bonus_value(abs(bv))}% 隐形装置的CPU需求降低",
-            'WarpFactor': lambda bv, en: f"{self._format_bonus_value(abs(bv))}% 隐形装置的CPU需求降低",
-            'SurveyProbeLauncherCpuNeed': lambda bv, en: f"{self._format_bonus_value(abs(bv))}% 扫描探针发射器CPU需求降低",
-            'surveyProbeLauncher': lambda bv, en: f"{self._format_bonus_value(abs(bv))}% 扫描探针发射器CPU需求降低",
-            'SurveyProbe': lambda bv, en: f"{self._format_bonus_value(abs(bv))}% 扫描探针发射器CPU需求降低",
-            'ScanProbeLauncherCPU': lambda bv, en: f"{self._format_bonus_value(abs(bv))}% 扫描探针发射器CPU需求降低",
-            'cpu': lambda bv, en: f"{self._format_bonus_value(abs(bv))}% 隐形装置的CPU需求降低" if 'covertOpsCloakCpu' in en or 'WarpFactor' in en else f"{self._format_bonus_value(abs(bv))}% 扫描探针发射器CPU需求降低" if 'SurveyProbeLauncherCpuNeed' in en or 'surveyProbeLauncher' in en.lower() or 'SurveyProbe' in en or 'ScanProbeLauncherCPU' in en or 'ScanProbe' in en else f"{self._format_bonus_value(abs(bv))}% 推进抑制系统启动消耗减少" if 'Crusader' in en or 'Interceptor' in en else f"{self._format_bonus_value(abs(bv))}% 索敌扰断器启动消耗和CPU需求降低" if 'WeaponDisruption' in en or 'TD' in en or 'Maller' in en or 'Crucifier' in en else f"{self._format_bonus_value(abs(bv))}% CPU需求降低",
-            'warpScrambleStrengthBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 跃迁干扰强度加成",
-            'shipLaserRofAC2': lambda bv, en: f"{self._format_bonus_value(abs(bv))}% 中型能量炮台射速加成",
-            'shipBonusEwWeaponDisruptionStrengthAC1': lambda bv, en: f"{self._format_bonus_value(bv)}% 武器扰断器效果加成",
-            'shipBonusMETOptimalAC2': lambda bv, en: f"{self._format_bonus_value(bv)}% 中型能量炮台最佳射程加成",
-            'shipBonusMediumEnergyWeaponRangeABC1': lambda bv, en: f"{self._format_bonus_value(bv)}% 中型能量炮台最佳射程加成",
-            'shipBonusLargeEnergyTurretMaxRangeAB2': lambda bv, en: f"{self._format_bonus_value(bv)}% 大型能量炮台最佳射程加成",
-            'shipBonusEnergyNeutOptimalAB': lambda bv, en: f"{self._format_bonus_value(bv)}% 掠能器和能量中和器最佳射程加成",
-            'shipBonusEnergyNeutFalloffAB2': lambda bv, en: f"{self._format_bonus_value(bv)}% 掠能器和能量中和器失准范围加成",
-            'shipBonusEnergyNosOptimalAB': lambda bv, en: f"{self._format_bonus_value(bv)}% 掠能器和能量中和器最佳射程加成",
-            'shipBonusEnergyNosFalloffAB2': lambda bv, en: f"{self._format_bonus_value(bv)}% 掠能器和能量中和器失准范围加成",
-            'shipBonusEnergyNeutOptimalAD1': lambda bv, en: f"{self._format_bonus_value(bv)}% 掠能器和能量中和器最佳射程加成",
-            'shipBonusEnergyNosOptimalAD2': lambda bv, en: f"{self._format_bonus_value(bv)}% 掠能器和能量中和器最佳射程加成",
-            'shipBonusEnergyNeutFalloffAD1': lambda bv, en: f"{self._format_bonus_value(bv)}% 掠能器和能量中和器失准范围加成",
-            'shipBonusEnergyNosFalloffAD1': lambda bv, en: f"{self._format_bonus_value(bv)}% 掠能器和能量中和器失准范围加成",
-            'shipBonusTorpedoDamageAB': lambda bv, en: f"{self._format_bonus_value(bv)}% 鱼雷伤害加成",
-            'shipBonusCruiseMissileDamageAB': lambda bv, en: f"{self._format_bonus_value(bv)}% 巡航导弹伤害加成",
-            'shipBonusHeavyMissileDamageAB': lambda bv, en: f"{self._format_bonus_value(bv)}% 重型导弹伤害加成",
-            'bcLargeEnergyTurretCPUNeedBonus': lambda bv, en: f"{self._format_bonus_value(abs(bv))}% 大型能量炮台CPU需求降低",
-            'bcLargeEnergyTurretCapacitorNeedBonus': lambda bv, en: f"{self._format_bonus_value(abs(bv))}% 大型能量炮台启动消耗减少",
-            'falloff': lambda bv, en: f"{self._format_bonus_value(bv)}% 掠能器和能量中和器失准范围加成" if 'shipBonusEnergyNeutFalloffAB2' in en or 'shipBonusEnergyNosFalloffAB2' in en or 'shipBonusEnergyNeutFalloffAD1' in en or 'shipBonusEnergyNosFalloffAD1' in en else f"{self._format_bonus_value(bv)}% 中型能量炮台最佳射程和失准范围加成" if 'battlecruiserMETRange' in en or 'battlecruiserMETRange2' in en else f"{self._format_bonus_value(bv)}% 远程装甲维修器失准范围加成" if 'armorRepairProjector' in en else f"{self._format_bonus_value(bv)}% 武器扰断器最佳射程和失准范围惩罚" if 'TD' in en or 'WeaponDisruption' in en or 'Maller' in en or 'Crucifier' in en else f"{self._format_bonus_value(bv)}% 效果失准范围加成",
-            'eliteBonusGunshipCapRecharge2': lambda bv, en: f"{self._format_bonus_value(abs(bv))}% 小型能量炮台伤害加成",
-            'covertOpsCpuBonus1': lambda bv, en: f"{self._format_bonus_value(bv * 10)}% 鱼雷伤害加成",
-            'shipBonusEnergyNeutOptimalEAF1': lambda bv, en: f"{self._format_bonus_value(bv)}% 掠能器和能量中和器最佳射程加成",
-            'shipBonusEnergyNeutFalloffEAF3': lambda bv, en: f"{self._format_bonus_value(bv)}% 掠能器和能量中和器失准范围加成",
-            'shipBonusEnergyNosOptimalEAF1': lambda bv, en: f"{self._format_bonus_value(bv)}% 掠能器和能量中和器最佳射程加成",
-            'shipBonusEnergyNosFalloffEAF3': lambda bv, en: f"{self._format_bonus_value(bv)}% 掠能器和能量中和器失准范围加成",
-            'eliteBonusElectronicAttackShipRechargeRate2': lambda bv, en: f"{self._format_bonus_value(abs(bv))}% 电容回充速率加成",
-            'TrackingSpeedBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 跟踪速度加成",
-            'ExplosionRadiusBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 爆炸半径加成",
-            'ExplosionVelocityBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 爆炸速度加成",
-            'FlightTimeBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 飞行时间加成",
-            'MissileVelocityBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 导弹速度加成",
-            'OptimalRangeBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 最佳射程加成",
-            'Tracking Speed Bonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 跟踪速度加成",
-            'Optimal Range Bonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 最佳射程加成",
-            'Explosion Radius Bonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 爆炸半径加成",
-            'Explosion Velocity Bonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 爆炸速度加成",
-            'Flight Time Bonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 飞行时间加成",
-            'Missile Velocity Bonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 导弹速度加成",
-            'Optimal Range': lambda bv, en: f"{self._format_bonus_value(bv)}% 掠能器和能量中和器最佳射程加成" if 'shipBonusEnergyNeutOptimalAB' in en or 'shipBonusEnergyNosOptimalAB' in en or 'shipBonusEnergyNeutOptimalAD1' in en or 'shipBonusEnergyNosOptimalAD2' in en else f"{self._format_bonus_value(bv)}% 大型能量炮台最佳射程加成" if 'shipBonusLargeEnergyTurretMaxRangeAB2' in en else f"{self._format_bonus_value(bv)}% 中型能量炮台最佳射程加成" if 'shipBonusMETOptimalAC2' in en or 'shipBonusMediumEnergyWeaponRangeABC1' in en else f"{self._format_bonus_value(bv)}% 武器扰断器最佳射程和失准范围惩罚" if 'Crucifier' in en else f"{self._format_bonus_value(bv)}% 最佳射程",
-            'Structure Hitpoints': lambda bv, en: None,
-            'Mining amount': lambda bv, en: f"{self._format_bonus_value(bv)}% 无人机采矿量加成",
-            'Maximum Velocity': lambda bv, en: f"{self._format_bonus_value(bv)}% 无人机最大速度加成",
-            'Shield Hitpoint Bonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 护盾扩展装置护盾值加成",
-            'Structure Hitpoint Bonus': lambda bv, en: f"{int(bv * 100)}% 强化舱隔壁结构值加成",
-            'Turret Tracking': lambda bv, en: f"{self._format_bonus_value(bv)}% 小型能量炮台跟踪速度加成" if 'AD' in en or 'AmarrDestroyer' in en else f"{self._format_bonus_value(bv)}% 中型能量炮台跟踪速度加成",
-            'energyNeutralizerAmountBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 能量中和器吸取量加成",
-            'energyNosferatuAmountBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 掠能器吸取量加成",
-            'EnergyNeutralizerTransferAmount': lambda bv, en: f"{self._format_bonus_value(bv)}% 能量中和器吸取量加成",
-            'shipEnergyDrainAmount': lambda bv, en: f"{self._format_bonus_value(bv)}% 掠能器吸取量加成",
-            'shipEnergyNeutralizerTransferAmountBonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 能量中和器吸取量加成",
-            'shipEnergyNeutralizerTransferAmountBonusAF': lambda bv, en: f"{self._format_bonus_value(bv)}% 能量中和器吸取量加成",
-            'shipEnergyNeutralizerTransferAmountBonusAmaNavyDestroyer': lambda bv, en: f"{self._format_bonus_value(bv)}% 能量中和器强度加成",
-            'Overload Speed Bonus': lambda bv, en: f"{self._format_bonus_value(bv)}% 加力燃烧器和微型跃迁推进器过载效果加成",
         }
         
         # 初始化技能类型映射字典
@@ -314,6 +252,10 @@ class EveESIPlugin(Star):
             'MinmatarDestroyer': '米玛塔尔驱逐舰',
             'CD': '加达里驱逐舰',
             'C2D': '加达里驱逐舰',
+            # 特殊舰船类型
+            'ElectronicAttackShip': '电子攻击舰',
+            'EAF': '电子攻击舰',
+            'LogiFrig': '后勤护卫舰',
             'C3D': '加达里驱逐舰',
             'CaldariDestroyer': '加达里驱逐舰',
             # 巡洋舰
@@ -398,408 +340,71 @@ class EveESIPlugin(Star):
             'Gunship': '突击护卫舰',
             'gunship': '突击护卫舰',
             'eliteBonusGunship': '突击护卫舰',
-            'ElectronicAttackShip': '电子攻击舰',
-            'EAF': '电子攻击舰',
-            'eliteBonusElectronicAttackShip': '电子攻击舰',
-            'eliteBonusElectronicAttackShipRechargeRate2': '电子攻击舰',
             # 特殊效果名称
             'shipBonusDroneHitpointsGF': '盖伦特护卫舰',
-            'shipArmor': '艾玛护卫舰',
             'shipRocketRoFBonusAF2': '艾玛护卫舰',
             'shipHTDmgBonusfixedGC': '艾玛护卫舰',
             'shipBonusHybridFalloffGC2': '艾玛护卫舰',
             'shipBonusArmorPlateMassGC3': '艾玛护卫舰'
         }
-
-    async def initialize(self):
-        """插件初始化方法"""
-        logger.info("EVE ESI 插件初始化")
-        # 创建aiohttp ClientSession
-        self.session = aiohttp.ClientSession()
-
-    async def shutdown(self):
-        """插件关闭方法"""
-        logger.info("EVE ESI 插件关闭")
-        # 关闭aiohttp ClientSession
-        if self.session:
-            await self.session.close()
-
-    def _load_aliases(self):
-        """加载简称字典"""
-        try:
-            if os.path.exists(self.alias_file):
-                with open(self.alias_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-        except Exception as e:
-            logger.error(f"加载简称字典失败: {e}")
-        return {}
-
-    def _save_aliases(self):
-        """保存简称字典"""
-        try:
-            with open(self.alias_file, 'w', encoding='utf-8') as f:
-                json.dump(self.aliases, f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            logger.error(f"保存简称字典失败: {e}")
-
-    @filter.command("简称")
-    async def add_alias(self, event: AstrMessageEvent):
-        """添加简称"""
-        message_str = event.message_str
-        parts = message_str.split(" ")
-        if len(parts) < 2:
-            yield event.plain_result("使用方法: /简称 <全称>=<简称>")
-            return
-        
-        alias_part = " ".join(parts[1:])
-        if "=" not in alias_part:
-            yield event.plain_result("使用方法: /简称 <全称>=<简称>")
-            return
-        
-        full_name, alias = alias_part.split("=", 1)
-        full_name = full_name.strip()
-        alias = alias.strip()
-        
-        if not full_name or not alias:
-            yield event.plain_result("全称和简称不能为空")
-            return
-        
-        # 添加简称
-        if full_name not in self.aliases:
-            self.aliases[full_name] = []
-        
-        if alias not in self.aliases[full_name]:
-            self.aliases[full_name].append(alias)
-            self._save_aliases()
-            yield event.plain_result(f"已添加简称: {alias} -> {full_name}")
-        else:
-            yield event.plain_result(f"简称 {alias} 已存在")
-
-    @filter.command("简称列表")
-    async def list_alias(self, event: AstrMessageEvent):
-        """查看简称列表"""
-        message_str = event.message_str
-        parts = message_str.split(" ")
-        
-        if len(parts) < 2:
-            # 显示所有简称
-            if not self.aliases:
-                yield event.plain_result("暂无简称")
-                return
-            
-            result = "简称列表:\n"
-            for full_name, aliases in self.aliases.items():
-                result += f"{full_name}: {', '.join(aliases)}\n"
-            yield event.plain_result(result)
-        else:
-            # 查询指定全称或简称
-            query = " ".join(parts[1:])
-            
-            # 检查是否是简称
-            for full_name, aliases in self.aliases.items():
-                if query in aliases:
-                    yield event.plain_result(f"{full_name}: {', '.join(aliases)}")
-                    return
-            
-            # 检查是否是全称
-            if query in self.aliases:
-                yield event.plain_result(f"{query}: {', '.join(self.aliases[query])}")
-            else:
-                yield event.plain_result(f"{query} 还没有简称")
-
-    @filter.command("简称删除")
-    async def delete_alias(self, event: AstrMessageEvent):
-        """删除简称"""
-        message_str = event.message_str
-        parts = message_str.split(" ")
-        if len(parts) < 2:
-            yield event.plain_result("使用方法: /简称删除 <简称>")
-            return
-        
-        alias = " ".join(parts[1:])
-        
-        # 查找并删除简称
-        found = False
-        for full_name, aliases in list(self.aliases.items()):
-            if alias in aliases:
-                aliases.remove(alias)
-                if not aliases:
-                    del self.aliases[full_name]
-                found = True
-                break
-        
-        if found:
-            self._save_aliases()
-            yield event.plain_result(f"已删除简称: {alias}")
-        else:
-            yield event.plain_result(f"简称 {alias} 不存在")
-
-    @filter.command("jt")
-    async def get_jita_price_short(self, event: AstrMessageEvent):
-        """查询吉他市场价格（短命令）"""
-        async for result in self.get_jita_price(event):
-            yield result
-
-    @filter.command("吉他")
-    async def get_jita_price(self, event: AstrMessageEvent):
-        """查询吉他市场价格"""
-        message_str = event.message_str
-        parts = message_str.split(" ")
-        if len(parts) < 2:
-            yield event.plain_result("使用方法: /吉他 <物品名称或ID>")
-            return
-        
-        query = " ".join(parts[1:])
-        # 检查是否有简称
-        if query in self.aliases:
-            logger.info(f"使用简称: {query} -> {self.aliases[query]}")
-            query = self.aliases[query]
-        
-        # 尝试将查询转换为数字（物品ID）
-        if query.isdigit():
-            item_id = query
-            async for result in self._get_jita_price(item_id, event, ''):
-                yield result
-        else:
-            # 先使用市场中心API搜索，将名称转换为ID
-            logger.info(f"使用市场中心API搜索物品: {query}")
-            market_result = await self.search_item_by_name(query)
-            
-            if market_result and len(market_result) > 0:
-                # 判断用户是否明确查询涂装或蓝图
-                is_query_skin = self._is_skin(query)
-                is_query_blueprint = self._is_blueprint(query)
-                
-                if is_query_skin or is_query_blueprint:
-                    # 用户明确查询涂装或蓝图，不过滤，显示所有结果
-                    result_text = f"找到'{query}'的搜索结果:\n"
-                    for i, item in enumerate(market_result[:10], 1):  # 显示前10个结果
-                        result_text += f"{i}. {item.get('typename', '未知')} (ID: {item.get('typeid', '未知')})\n"
-                    result_text += "\n请使用 /吉他 <物品ID> 查看具体物品价格"
-                    yield event.plain_result(result_text)
-                else:
-                    # 用户查询的是缩写，过滤掉涂装和蓝图
-                    filtered_result = [
-                        item for item in market_result 
-                        if not self._is_skin(item.get('typename', '')) 
-                        and not self._is_blueprint(item.get('typename', ''))
-                    ]
-                    skin_count = len(market_result) - len(filtered_result)
-                    
-                    if filtered_result:
-                        # 构建结果文本
-                        result_text = f"找到'{query}'的{len(market_result)}个结果\n"
-                        if skin_count > 0:
-                            result_text += f"其中{skin_count}个为涂装或蓝图暂时过滤\n"
-                        result_text += "\n"
-                        
-                        # 显示前5个的具体价格（卖价在前，买价在后）
-                        for i, item in enumerate(filtered_result[:5], 1):
-                            item_id = str(item.get('typeid', ''))
-                            item_name = item.get('typename', '未知')
-                            buy_price, sell_price = await self._get_item_price_info(item_id)
-                            result_text += f"{i}. {item_name}\n"
-                            result_text += f"   {sell_price}\n"
-                            result_text += f"   {buy_price}\n\n"
-                        
-                        # 如果超过5个，列出剩下的全名
-                        if len(filtered_result) > 5:
-                            remaining_count = len(filtered_result) - 5
-                            result_text += f"其他结果（还有{remaining_count}个）:\n"
-                            for i, item in enumerate(filtered_result[5:10], 6):
-                                result_text += f"{i}. {item.get('typename', '未知')}\n"
-                            if remaining_count > 5:
-                                result_text += f"... 还有 {remaining_count - 5} 个结果\n"
-                            result_text += "\n"
-                        
-                        result_text += "如果你的搜索物品不在本列表内，请再详细一点搜索"
-                        yield event.plain_result(result_text)
-                    else:
-                        # 如果过滤后没有结果，提示用户
-                        yield event.plain_result("搜索结果前十个都是涂装或蓝图。请再详细一点搜索。")
-            else:
-                # 如果市场中心没找到，提示用户使用更详细的名称或物品ID
-                yield event.plain_result(f"未找到物品'{query}'。提示：请使用更详细的中文名称或物品ID（如34）进行查询。")
-
-    @filter.command("属性")
-    async def get_item_info_short(self, event: AstrMessageEvent):
-        """查看物品具体信息"""
-        message_str = event.message_str
-        parts = message_str.split(" ")
-        if len(parts) < 2:
-            yield event.plain_result("使用方法: /属性 <物品名称或ID>")
-            return
-        
-        query = " ".join(parts[1:])
-        # 检查是否有简称
-        if query in self.aliases:
-            logger.info(f"使用简称: {query} -> {self.aliases[query]}")
-            query = self.aliases[query]
-        
-        # 尝试将查询转换为数字（物品ID）
-        if query.isdigit():
-            item_id = query
-            async for result in self._get_item_info(item_id, event, ''):
-                yield result
-        else:
-            # 先使用市场中心API搜索，将名称转换为ID
-            logger.info(f"使用市场中心API搜索物品: {query}")
-            market_result = await self.search_item_by_name(query)
-            
-            if market_result and len(market_result) > 0:
-                # 判断用户是否明确查询涂装或蓝图
-                is_query_skin = self._is_skin(query)
-                is_query_blueprint = self._is_blueprint(query)
-                
-                if is_query_skin or is_query_blueprint:
-                    # 用户明确查询涂装或蓝图，不过滤，显示所有结果
-                    result_text = f"找到'{query}'的搜索结果:\n"
-                    for i, item in enumerate(market_result[:10], 1):  # 显示前10个结果
-                        result_text += f"{i}. {item.get('typename', '未知')} (ID: {item.get('typeid', '未知')})\n"
-                    result_text += "\n请使用 /属性 <物品ID> 查看具体物品信息"
-                    yield event.plain_result(result_text)
-                else:
-                    # 用户查询的是缩写，过滤掉涂装和蓝图
-                    filtered_result = [
-                        item for item in market_result 
-                        if not self._is_skin(item.get('typename', '')) 
-                        and not self._is_blueprint(item.get('typename', ''))
-                    ]
-                    
-                    if filtered_result:
-                        if len(filtered_result) == 1:
-                            # 只有一个结果，直接显示物品信息
-                            item = filtered_result[0]
-                            item_id = str(item.get('typeid', ''))
-                            item_name = item.get('typename', '')
-                            async for result in self._get_item_info(item_id, event, item_name):
-                                yield result
-                        else:
-                            # 多个结果，列出所有非涂装非蓝图结果，引导用户再用命令查看
-                            result_text = f"找到'{query}'的{len(filtered_result)}个结果:\n"
-                            for i, item in enumerate(filtered_result[:15], 1):  # 显示前15个结果
-                                result_text += f"{i}. {item.get('typename', '未知')} (ID: {item.get('typeid', '未知')})\n"
-                            if len(filtered_result) > 15:
-                                result_text += f"... 还有 {len(filtered_result) - 15} 个结果\n"
-                            result_text += "\n请使用 /属性 <物品ID> 查看具体物品信息"
-                            yield event.plain_result(result_text)
-                    else:
-                        # 如果过滤后没有结果，提示用户
-                        yield event.plain_result("搜索结果前十个都是涂装或蓝图。请再详细一点搜索。")
-            else:
-                # 如果市场中心没找到，提示用户使用更详细的名称或物品ID
-                yield event.plain_result(f"未找到物品'{query}'。提示：请使用更详细的中文名称或物品ID（如34）进行查询。")
-
-    def _format_price(self, price):
-        """格式化价格显示
-        
-        格式：数字（简化表示）
-        例如：1,234,567,890.12 (12亿) 或 12,345,678.90 (1234万)
-        """
-        if price is None or price == 0:
+    
+    def _format_bonus_value(self, value):
+        """格式化加成值"""
+        if value == 0:
             return "0"
-        
-        # 千分位格式化
-        formatted = f"{price:,.2f}"
-        
-        # 计算简化表示，只显示亿和万
-        if price >= 100000000:  # 1亿以上
-            simplified = price / 100000000
-            if simplified >= 100:
-                return f"{formatted} ({int(simplified)}亿)"
-            else:
-                return f"{formatted} ({simplified:.1f}亿)"
-        elif price >= 10000:  # 1万以上
-            simplified = price / 10000
-            return f"{formatted} ({int(simplified)}万)"
+        elif value % 1 == 0:
+            return str(int(value))
         else:
-            return formatted
-
-    async def _get_item_price_info(self, item_id):
-        """获取物品简要价格信息（用于多结果列表显示）"""
-        jita_region_id = 10000002
+            return f"{value:.2f}"
+    
+    def _handle_damage_bonus(self, bonus_value, effect_name, bonus_attribute):
+        """处理伤害加成"""
+        # 检查是否是无人机伤害加成
+        if 'Drone' in effect_name or 'drone' in effect_name:
+            return f"{self._format_bonus_value(bonus_value)}% 无人机伤害加成"
         
-        try:
-            # 获取买单和卖单
-            buy_orders = await self.esi_request(f"/v1/markets/{jita_region_id}/orders/?type_id={item_id}&order_type=buy")
-            sell_orders = await self.esi_request(f"/v1/markets/{jita_region_id}/orders/?type_id={item_id}&order_type=sell")
-            
-            # 计算最高买单和最低卖单
-            highest_buy = 0
-            if buy_orders and len(buy_orders) > 0:
-                highest_buy = max(order['price'] for order in buy_orders)
-            
-            lowest_sell = 0
-            if sell_orders and len(sell_orders) > 0:
-                lowest_sell = min(order['price'] for order in sell_orders)
-            
-            # 格式化价格
-            buy_text = f"买:{self._format_price(highest_buy)}" if highest_buy > 0 else "买:无数据"
-            sell_text = f"卖:{self._format_price(lowest_sell)}" if lowest_sell > 0 else "卖:无数据"
-            
-            return buy_text, sell_text
-        except Exception as e:
-            logger.error(f"获取物品价格信息失败: {e}")
-            return "买:错误", "卖:错误"
-
-    async def _get_jita_price(self, item_id, event, item_name_cn=''):
-        """获取吉他市场价格的内部方法"""
-        # PLEX（伊甸币）的物品ID列表
-        plex_ids = ['50001', '44992']  # 50001是国服PLEX ID，44992是国际服PLEX ID
+        # 检查是否是导弹伤害加成
+        if 'missile' in effect_name.lower() or 'rocket' in effect_name.lower():
+            # 检查是否有四种伤害类型
+            if 'emDamageBonus' in effect_name or 'explosiveDamageBonus' in effect_name or 'kineticDamageBonus' in effect_name or 'thermalDamageBonus' in effect_name:
+                # 检查效果名称中是否包含具体的导弹类型
+                if 'rocket' in effect_name.lower():
+                    return f"{self._format_bonus_value(bonus_value)}% 火箭伤害加成"
+                elif 'light' in effect_name.lower() or 'lightMissile' in effect_name.lower():
+                    return f"{self._format_bonus_value(bonus_value)}% 轻型导弹伤害加成"
+                else:
+                    return f"{self._format_bonus_value(bonus_value)}% 导弹伤害加成"
         
-        if item_id in plex_ids:
-            # PLEX有专门的市场端点
-            async for result in self._get_plex_price(item_id, event, item_name_cn):
-                yield result
-            return
+        # 检查是否是大型能量炮台伤害加成
+        if 'LEDmg' in effect_name or 'LargeEnergyTurretDamage' in effect_name or 'LargeEnergy' in effect_name or 'ABS' in effect_name or 'AmarrBattleship' in effect_name or ('ABC' in effect_name and 'Large' in effect_name):
+            return f"{self._format_bonus_value(bonus_value)}% 大型能量炮台伤害加成"
+        # 检查是否是中型能量炮台伤害加成
+        elif 'MEDmg' in effect_name or 'MediumEnergyTurretDamage' in effect_name or 'MediumEnergy' in effect_name or 'AC' in effect_name or 'AmarrCruiser' in effect_name or ('ABC' in effect_name and not 'Large' in effect_name and not 'LEDmg' in effect_name):
+            return f"{self._format_bonus_value(bonus_value)}% 中型能量炮台伤害加成"
+        # 检查是否是小型能量炮台伤害加成
+        elif 'SETDmg' in effect_name or 'SmallEnergyTurretDamage' in effect_name or 'PBonus' in effect_name or 'HTDmgBonusfixedGC' in effect_name or 'EMTDamageBonus' in effect_name or 'ETDamage' in effect_name or 'SmallEnergy' in effect_name or 'Retribution' in effect_name or bonus_attribute == '伤害量调整' or ('AF' in effect_name and 'Energy' in effect_name):
+            return f"{self._format_bonus_value(bonus_value)}% 小型能量炮台伤害加成"
+        # 检查是否是小型混合炮台伤害加成
+        elif 'HTDmg' in effect_name or 'SmallHybridTurretDamage' in effect_name or 'SmallHybrid' in effect_name:
+            return f"{self._format_bonus_value(bonus_value)}% 小型混合炮台伤害加成"
+        # 检查是否是中型混合炮台伤害加成
+        elif 'MMDmg' in effect_name or 'MediumHybridTurretDamage' in effect_name or 'MediumHybrid' in effect_name:
+            return f"{self._format_bonus_value(bonus_value)}% 中型混合炮台伤害加成"
+        # 检查是否是大型混合炮台伤害加成
+        elif 'LMDmg' in effect_name or 'LargeHybridTurretDamage' in effect_name or 'LargeHybrid' in effect_name:
+            return f"{self._format_bonus_value(bonus_value)}% 大型混合炮台伤害加成"
+        # 检查是否是小型射弹炮台伤害加成
+        elif 'SPTDmg' in effect_name or 'SmallProjectileTurretDamage' in effect_name or 'SmallProjectile' in effect_name:
+            return f"{self._format_bonus_value(bonus_value)}% 小型射弹炮台伤害加成"
+        # 检查是否是中型射弹炮台伤害加成
+        elif 'MPTDmg' in effect_name or 'MediumProjectileTurretDamage' in effect_name or 'MediumProjectile' in effect_name:
+            return f"{self._format_bonus_value(bonus_value)}% 中型射弹炮台伤害加成"
+        # 检查是否是大型射弹炮台伤害加成
+        elif 'LPTDmg' in effect_name or 'LargeProjectileTurretDamage' in effect_name or 'LargeProjectile' in effect_name:
+            return f"{self._format_bonus_value(bonus_value)}% 大型射弹炮台伤害加成"
         
-        jita_region_id = 10000002  # 吉他所在的区域ID
-        # 获取吉他市场价格
-        buy_orders = await self.esi_request(f"/v1/markets/{jita_region_id}/orders/?type_id={item_id}&order_type=buy")
-        sell_orders = await self.esi_request(f"/v1/markets/{jita_region_id}/orders/?type_id={item_id}&order_type=sell")
-        
-        # 获取物品信息
-        item_info = await self.esi_request(f"/v3/universe/types/{item_id}/")
-        item_name = item_name_cn if item_name_cn else (item_info.get('name', '未知物品') if item_info else '未知物品')
-        
-        # 处理买单数据
-        highest_buy = 0
-        buy_volume = 0
-        if buy_orders and len(buy_orders) > 0:
-            # 按价格排序，获取最高买单
-            buy_orders.sort(key=lambda x: x['price'], reverse=True)
-            highest_buy = buy_orders[0]['price']
-            buy_volume = sum(order['volume_remain'] for order in buy_orders[:5])  # 前5个买单的数量
-        
-        # 处理卖单数据
-        lowest_sell = 0
-        sell_volume = 0
-        if sell_orders and len(sell_orders) > 0:
-            # 按价格排序，获取最低卖单
-            sell_orders.sort(key=lambda x: x['price'])
-            lowest_sell = sell_orders[0]['price']
-            sell_volume = sum(order['volume_remain'] for order in sell_orders[:5])  # 前5个卖单的数量
-        
-        # 构建结果文本
-        result = f"吉他市场价格信息:\n"
-        result += f"物品名: {item_name}\n"
-        result += f"物品ID: {item_id}\n"
-        
-        if highest_buy > 0:
-            result += f"最高买单: {self._format_price(highest_buy)} (数量: {buy_volume})\n"
-        else:
-            result += "最高买单: 无数据\n"
-        
-        if lowest_sell > 0:
-            result += f"最低卖单: {self._format_price(lowest_sell)} (数量: {sell_volume})\n"
-        else:
-            result += "最低卖单: 无数据\n"
-        
-        yield event.plain_result(result)
-
-    async def _get_plex_price(self, item_id, event, item_name_cn=''):
-        """获取伊甸币价格（国服特殊处理）"""
-        yield event.plain_result("伊甸币价格查询暂不可用")
+        # 默认返回通用伤害加成
+        return f"{self._format_bonus_value(bonus_value)}% {bonus_attribute}"
     
     def _extract_attributes(self, item_info):
         """提取物品属性"""
@@ -808,7 +413,7 @@ class EveESIPlugin(Star):
             attr_dict[attr['attribute_id']] = attr['value']
         return attr_dict
     
-    async def _process_bonuses(self, dogma_effects, attr_dict, session=None, item_name=''):
+    async def _process_bonuses(self, dogma_effects, attr_dict, session, item_name=''):
         """处理技能加成和特有加成"""
         # 导入re模块
         import re
@@ -861,13 +466,14 @@ class EveESIPlugin(Star):
         
         for effect in dogma_effects:
             effect_id = effect.get('effect_id')
-            effect_info = await self.esi_request(f"/v1/dogma/effects/{effect_id}/")
+            # 获取效果详情
+            effect_info = await self.esi_request(session, f"/v1/dogma/effects/{effect_id}/")
             if effect_info:
                 effect_name = effect_info.get('name', '')
                 modifiers = effect_info.get('modifiers', [])
                 
                 # 解析加成信息
-                bonus_texts = await self._process_modifiers(modifiers, attr_dict, effect_name)
+                bonus_texts = await self._process_modifiers(modifiers, attr_dict, effect_name, session)
                 
                 # 去重
                 bonus_texts = list(dict.fromkeys(bonus_texts))
@@ -903,18 +509,20 @@ class EveESIPlugin(Star):
                     bonus_texts = new_bonus_texts
                 
                 if bonus_texts:
+                    # 打印效果名称和加成文本
+                    print(f"effect_name: {effect_name}, bonus_texts: {bonus_texts}")
                     # 识别技能类型
                     skill_type = self._identify_skill_type(effect_name)
                     
                     if skill_type and skill_type in skill_bonuses_dict:
                         # 技能加成
                         for bonus_text in bonus_texts:
-                            if '装甲电磁伤害抗性' in bonus_text or '装甲热能伤害抗性' in bonus_text or '装甲动能伤害抗性' in bonus_text or '装甲爆炸伤害抗性' in bonus_text:
+                            if '装甲' in bonus_text and '伤害抗性' in bonus_text:
                                 # 收集装甲抗性加成
                                 if skill_type not in armor_resistance_bonuses:
                                     armor_resistance_bonuses[skill_type] = []
                                 armor_resistance_bonuses[skill_type].append(bonus_text)
-                            elif '护盾电磁伤害抗性' in bonus_text or '护盾热能伤害抗性' in bonus_text or '护盾动能伤害抗性' in bonus_text or '护盾爆炸伤害抗性' in bonus_text:
+                            elif '护盾' in bonus_text and '伤害抗性' in bonus_text:
                                 # 收集护盾抗性加成
                                 if skill_type not in shield_resistance_bonuses:
                                     shield_resistance_bonuses[skill_type] = []
@@ -924,7 +532,7 @@ class EveESIPlugin(Star):
                                 if skill_type not in missile_damage_bonuses:
                                     missile_damage_bonuses[skill_type] = []
                                 missile_damage_bonuses[skill_type].append(bonus_text)
-                            elif ('速度加成' in bonus_text or '失准范围加成' in bonus_text or '最佳射程加成' in bonus_text or '爆炸半径加成' in bonus_text or '飞行时间加成' in bonus_text or '跟踪速度加成' in bonus_text or '爆炸速度加成' in bonus_text or '导弹速度加成' in bonus_text) and '武器扰断器最佳射程加成' not in bonus_text and '武器扰断器最佳射程和失准范围惩罚' not in bonus_text:
+                            elif ('速度加成' in bonus_text or '失准范围加成' in bonus_text or '最佳射程加成' in bonus_text or '爆炸半径加成' in bonus_text or '飞行时间加成' in bonus_text or '跟踪速度加成' in bonus_text or '爆炸速度加成' in bonus_text or '导弹速度加成' in bonus_text) and '武器扰断器最佳射程加成' not in bonus_text and '武器扰断器最佳射程和失准范围惩罚' not in bonus_text and ('WeaponDisruption' in effect_name or 'TD' in effect_name or 'Maller' in effect_name or 'Crucifier' in effect_name) and 'battlecruiserMETRange' not in effect_name:
                                 # 收集武器扰断器相关加成（除了武器扰断器最佳射程加成和惩罚）
                                 if skill_type not in weapon_disruption_bonuses:
                                     weapon_disruption_bonuses[skill_type] = []
@@ -944,22 +552,26 @@ class EveESIPlugin(Star):
                             # 处理磨难级海军型的特有加成
                             # 检查效果名称中是否包含'Maller'或'Navy'或'Imperial'或'Crucifier'
                             if 'Maller' in effect_name or 'Navy' in effect_name or 'Imperial' in effect_name or 'Crucifier' in effect_name:
+                                # 处理所有包含"最佳射程"的情况
                                 if '最佳射程' in bonus_text and '武器扰断器' not in bonus_text:
                                     # 替换为武器扰断器惩罚
                                     bonus_text = bonus_text.replace('最佳射程', '武器扰断器最佳射程和失准范围惩罚')
+                                # 处理所有包含"效果失准范围加成"的情况
                                 elif '效果失准范围加成' in bonus_text:
                                     # 替换为武器扰断器惩罚
                                     bonus_text = bonus_text.replace('效果失准范围加成', '武器扰断器最佳射程和失准范围惩罚')
+                                # 处理所有包含"CPU需求降低"的情况
                                 elif 'CPU需求降低' in bonus_text and '索敌扰断器' not in bonus_text:
                                     # 替换为索敌扰断器CPU需求降低
                                     bonus_text = bonus_text.replace('CPU需求降低', '索敌扰断器启动消耗和CPU需求降低')
+                                # 处理所有包含"启动消耗减少"的情况
                                 elif '启动消耗减少' in bonus_text and '索敌扰断器' not in bonus_text:
                                     # 替换为索敌扰断器启动消耗降低
                                     bonus_text = bonus_text.replace('启动消耗减少', '索敌扰断器启动消耗和CPU需求降低')
-                            # 额外处理：直接检查bonus_text中的内容
-                            elif '最佳射程' in bonus_text and '武器扰断器' not in bonus_text:
-                                # 替换为武器扰断器惩罚
-                                bonus_text = bonus_text.replace('最佳射程', '武器扰断器最佳射程和失准范围惩罚')
+                                # 额外处理：直接检查bonus_text中的内容
+                                elif '最佳射程' in bonus_text and '武器扰断器' not in bonus_text:
+                                    # 替换为武器扰断器惩罚
+                                    bonus_text = bonus_text.replace('最佳射程', '武器扰断器最佳射程和失准范围惩罚')
                             # 处理科洛斯级的特有加成
                             if 'Crusader' in effect_name or 'Interceptor' in effect_name:
                                 # 处理索敌扰断器启动消耗和CPU需求降低
@@ -1003,7 +615,6 @@ class EveESIPlugin(Star):
                 # 提取加成值
                 bonus_value = None
                 for bonus in bonuses:
-                    import re
                     match = re.search(r'(\d+\.?\d*)%', bonus)
                     if match:
                         bonus_value = match.group(1)
@@ -1011,6 +622,11 @@ class EveESIPlugin(Star):
                 if bonus_value:
                     # 创建通用的装甲抗性加成文本
                     armor_bonus = f"{bonus_value}% 装甲抗性加成"
+                    # 移除所有单独的装甲抗性加成
+                    for bonus in bonuses:
+                        if bonus in skill_bonuses_dict[skill_type]:
+                            skill_bonuses_dict[skill_type].remove(bonus)
+                    # 添加通用的装甲抗性加成
                     if armor_bonus not in skill_bonuses_dict[skill_type]:
                         skill_bonuses_dict[skill_type].append(armor_bonus)
             else:
@@ -1026,7 +642,6 @@ class EveESIPlugin(Star):
                 # 提取加成值
                 bonus_value = None
                 for bonus in bonuses:
-                    import re
                     match = re.search(r'(\d+\.?\d*)%', bonus)
                     if match:
                         bonus_value = match.group(1)
@@ -1072,6 +687,7 @@ class EveESIPlugin(Star):
                             skill_bonuses_dict[skill_type].append(f"{bonus_value}% 轻型导弹伤害加成")
                         else:
                             skill_bonuses_dict[skill_type].append(f"{bonus_value}% 导弹伤害加成")
+
 
         # 处理掠能器和能量中和器最佳射程和失准范围加成
         for skill_type, bonuses in skill_bonuses_dict.items():
@@ -1140,24 +756,6 @@ class EveESIPlugin(Star):
                 if bonus in skill_bonuses_dict[skill_type]:
                     skill_bonuses_dict[skill_type].remove(bonus)
         
-        # 处理武器扰断器最佳射程加成
-        # 这里不需要特殊处理，因为它已经被单独添加到skill_bonuses_dict中了
-        
-        # 处理磨难级海军型的武器扰断器和索敌扰断器效果
-        # 处理技能加成中的重复效果
-        for skill_type, bonuses in skill_bonuses_dict.items():
-            # 检查是否有武器扰断器最佳射程和失准范围惩罚
-            td_penalty_bonuses = [b for b in bonuses if '武器扰断器最佳射程和失准范围惩罚' in b]
-            if len(td_penalty_bonuses) > 0:
-                # 移除所有武器扰断器最佳射程和失准范围惩罚
-                skill_bonuses_dict[skill_type] = [b for b in skill_bonuses_dict[skill_type] if '武器扰断器最佳射程和失准范围惩罚' not in b]
-            
-            # 检查是否有索敌扰断器启动消耗和CPU需求降低
-            td_cap_cpu_bonuses = [b for b in bonuses if '索敌扰断器启动消耗和CPU需求降低' in b]
-            if len(td_cap_cpu_bonuses) > 0:
-                # 移除所有索敌扰断器启动消耗和CPU需求降低
-                skill_bonuses_dict[skill_type] = [b for b in skill_bonuses_dict[skill_type] if '索敌扰断器启动消耗和CPU需求降低' not in b]
-        
         # 处理科洛斯级和咒灭级的特有加成
         # 检查是否有截击舰操作的技能加成
         if '截击舰' in skill_bonuses_dict:
@@ -1186,7 +784,7 @@ class EveESIPlugin(Star):
                 unique_bonuses.append("100% 拦截失效装置持续时间加成")
                 # 添加跃迁速度和跃迁加速加成
                 unique_bonuses.append("60% 跃迁速度和跃迁加速加成")
-        
+
         # 处理信号半径加成
         for skill_type, bonuses in skill_bonuses_dict.items():
             for i, bonus in enumerate(bonuses):
@@ -1201,6 +799,24 @@ class EveESIPlugin(Star):
                             bonus_value = bonus_value[1:]
                         # 替换为微型跃迁推进器的信号半径惩罚降低
                         bonuses[i] = f"{bonus_value}% 微型跃迁推进器的信号半径惩罚降低"
+
+        # 处理武器扰断器最佳射程加成
+        # 这里不需要特殊处理，因为它已经被单独添加到skill_bonuses_dict中了
+        
+        # 处理磨难级海军型的武器扰断器和索敌扰断器效果
+        # 处理技能加成中的重复效果
+        for skill_type, bonuses in skill_bonuses_dict.items():
+            # 检查是否有武器扰断器最佳射程和失准范围惩罚
+            td_penalty_bonuses = [b for b in bonuses if '武器扰断器最佳射程和失准范围惩罚' in b]
+            if len(td_penalty_bonuses) > 0:
+                # 移除所有武器扰断器最佳射程和失准范围惩罚
+                skill_bonuses_dict[skill_type] = [b for b in skill_bonuses_dict[skill_type] if '武器扰断器最佳射程和失准范围惩罚' not in b]
+            
+            # 检查是否有索敌扰断器启动消耗和CPU需求降低
+            td_cap_cpu_bonuses = [b for b in bonuses if '索敌扰断器启动消耗和CPU需求降低' in b]
+            if len(td_cap_cpu_bonuses) > 0:
+                # 移除所有索敌扰断器启动消耗和CPU需求降低
+                skill_bonuses_dict[skill_type] = [b for b in skill_bonuses_dict[skill_type] if '索敌扰断器启动消耗和CPU需求降低' not in b]
         
         # 处理特有加成中的重复效果
         # 检查是否是强制者级，它的特有加成应该是小型能量炮台最佳射程加成
@@ -1211,7 +827,6 @@ class EveESIPlugin(Star):
                 # 提取加成值
                 bonus_value = None
                 for bonus in set_optimal_bonuses:
-                    import re
                     match = re.search(r'(-?\d+\.?\d*)%', bonus)
                     if match:
                         bonus_value = match.group(1)
@@ -1228,7 +843,6 @@ class EveESIPlugin(Star):
                 # 提取加成值
                 bonus_value = None
                 for bonus in td_penalty_bonuses:
-                    import re
                     match = re.search(r'(-?\d+\.?\d*)%', bonus)
                     if match:
                         bonus_value = match.group(1)
@@ -1249,7 +863,6 @@ class EveESIPlugin(Star):
                 # 提取加成值
                 bonus_value = None
                 for bonus in td_cap_cpu_bonuses:
-                    import re
                     match = re.search(r'(-?\d+\.?\d*)%', bonus)
                     if match:
                         bonus_value = match.group(1)
@@ -1274,50 +887,6 @@ class EveESIPlugin(Star):
                             bonus_value = '-' + bonus_value
                         unique_bonuses.append(f"{bonus_value}% 索敌扰断器启动消耗和CPU需求降低")
         
-        # 处理科洛斯级和咒灭级的特有加成
-        # 检查是否有截击舰操作的技能加成
-        if '截击舰' in skill_bonuses_dict:
-            # 对于科洛斯级，添加小型能量炮台跟踪速度加成
-            if is_crusader:
-                # 检查是否已经有小型能量炮台跟踪速度加成
-                has_tracking_bonus = any('小型能量炮台跟踪速度加成' in bonus for bonus in skill_bonuses_dict['截击舰'])
-                if not has_tracking_bonus:
-                    # 添加小型能量炮台跟踪速度加成
-                    skill_bonuses_dict['截击舰'].append("7.50% 小型能量炮台跟踪速度加成")
-            # 对于咒灭级，添加跃迁扰频器和跃迁扰断器最佳射程加成
-            elif is_malediction:
-                # 移除不需要的加成
-                filtered_bonuses = []
-                for bonus in skill_bonuses_dict['截击舰']:
-                    # 保留信号半径加成（还没被处理）
-                    if '信号半径加成' in bonus:
-                        filtered_bonuses.append(bonus)
-                # 添加跃迁扰频器和跃迁扰断器最佳射程加成
-                filtered_bonuses.append("5% 跃迁扰频器和跃迁扰断器最佳射程加成")
-                skill_bonuses_dict['截击舰'] = filtered_bonuses
-                
-                # 直接添加拦截失效装置相关加成到特有加成中
-                unique_bonuses.append("80% 推进抑制系统启动消耗减少")
-                unique_bonuses.append("80% 拦截失效装置重启延迟、最大锁定距离惩罚和扫描分辨率惩罚降低")
-                unique_bonuses.append("100% 拦截失效装置持续时间加成")
-                # 添加跃迁速度和跃迁加速加成
-                unique_bonuses.append("60% 跃迁速度和跃迁加速加成")
-
-        # 处理信号半径加成
-        for skill_type, bonuses in skill_bonuses_dict.items():
-            for i, bonus in enumerate(bonuses):
-                if '信号半径加成' in bonus and (skill_type == '截击舰' or 'Interceptor' in skill_type):
-                    # 提取加成值
-                    import re
-                    match = re.search(r'(-?\d+\.?\d*)%', bonus)
-                    if match:
-                        bonus_value = match.group(1)
-                        # 确保数值为正数
-                        if bonus_value.startswith('-'):
-                            bonus_value = bonus_value[1:]
-                        # 替换为微型跃迁推进器的信号半径惩罚降低
-                        bonuses[i] = f"{bonus_value}% 微型跃迁推进器的信号半径惩罚降低"
-
         # 处理战列舰特有加成
         battleship_role_bonuses = [b for b in unique_bonuses if 'Shield Hitpoint Bonus' in b or '装甲值加成' in b or 'Structure Hitpoint Bonus' in b]
         if len(battleship_role_bonuses) > 0:
@@ -1330,7 +899,7 @@ class EveESIPlugin(Star):
         
         return skill_bonuses_dict, unique_bonuses
     
-    async def _process_modifiers(self, modifiers, attr_dict, effect_name):
+    async def _process_modifiers(self, modifiers, attr_dict, effect_name, session):
         """处理modifiers，生成加成文本"""
         bonus_texts = []
         
@@ -1346,42 +915,82 @@ class EveESIPlugin(Star):
             
             # 获取加成属性
             if modified_attr_id:
-                attr_info = await self.esi_request(f"/v1/dogma/attributes/{modified_attr_id}/")
+                attr_info = await self.esi_request(session, f"/v1/dogma/attributes/{modified_attr_id}/")
                 if attr_info:
                     bonus_attribute = attr_info.get('display_name', attr_info.get('name', ''))
             
             # 处理加成
             if bonus_value and bonus_attribute:
-                bonus_text = await self._process_bonus(bonus_value, bonus_attribute, effect_name, modified_attr_id)
+                # 忽略0值的加成
+                if bonus_value == 0:
+                    continue
+                # 忽略Powergrid Usage加成
+                if 'Powergrid Usage' in bonus_attribute:
+                    continue
+                bonus_text = await self._process_bonus(bonus_value, bonus_attribute, effect_name, modified_attr_id, session)
                 if bonus_text:
                     bonus_texts.append(bonus_text)
             elif bonus_value and modified_attr_id:
                 # 没有中文显示名称，尝试使用英文名称
-                bonus_text = await self._process_bonus_without_display_name(bonus_value, modified_attr_id, bonus_attribute)
+                # 忽略0值的加成
+                if bonus_value == 0:
+                    continue
+                # 忽略Powergrid Usage加成
+                if 'Powergrid Usage' in bonus_attribute:
+                    continue
+                bonus_text = await self._process_bonus_without_display_name(bonus_value, modified_attr_id, bonus_attribute, session)
                 if bonus_text:
                     bonus_texts.append(bonus_text)
         
         return bonus_texts
     
-    async def _process_bonus(self, bonus_value, bonus_attribute, effect_name, modified_attr_id):
+    async def _process_bonus(self, bonus_value, bonus_attribute, effect_name, modified_attr_id, session):
         """处理单个加成"""
         # 尝试从加成处理字典中获取处理函数
         bonus_text = None
         
         # 获取英文属性名称
-        attr_info = await self.esi_request(f"/v1/dogma/attributes/{modified_attr_id}/")
+        attr_info = await self.esi_request(session, f"/v1/dogma/attributes/{modified_attr_id}/")
         attr_name = attr_info.get('name', '') if attr_info else ''
         
-        # 调试日志
-        logger.info(f"处理加成: bonus_value={bonus_value}, bonus_attribute={bonus_attribute}, effect_name={effect_name}, modified_attr_id={modified_attr_id}, attr_name={attr_name}")
+        # 特殊处理：检查属性名称是否为duration
+        if attr_name == 'duration' and ('armor' in effect_name.lower() or 'repair' in effect_name.lower()):
+            return f"{self._format_bonus_value(abs(bonus_value))}% 远程装甲维修器运转周期减少"
         
-        # 优先检查英文属性名称（完全匹配）
-        if attr_name in self.bonus_handlers:
+        # 首先检查效果名称（完全匹配）
+        if effect_name in self.bonus_handlers:
             try:
-                bonus_text = self.bonus_handlers[attr_name](bonus_value, effect_name)
-                logger.info(f"使用英文属性名称完全匹配: {attr_name} -> {bonus_text}")
+                bonus_text = self.bonus_handlers[effect_name](bonus_value, effect_name)
+                print(f"effect_name: {effect_name}, bonus_text: {bonus_text}")
             except Exception as e:
-                logger.error(f"处理加成时出错: {e}")
+                print(f"处理加成时出错: {e}")
+        
+        # 然后检查效果名称（包含匹配）
+        if bonus_text is None:
+            # 特殊处理：如果效果名称包含'Gunship'和'Armor'，则处理为装甲抗性加成
+            if 'Gunship' in effect_name and ('Armor' in effect_name or 'Resistance' in effect_name):
+                # 获取属性信息以确定具体的抗性类型
+                if attr_name in ['armorEmDamageResonance', 'armorThermalDamageResonance', 'armorKineticDamageResonance', 'armorExplosiveDamageResonance']:
+                    bonus_text = f"{self._format_bonus_value(abs(bonus_value))}% 装甲{attr_name.split('armor')[1].replace('DamageResonance', '')}伤害抗性"
+                    print(f"effect_name contains: Gunship and Armor, bonus_text: {bonus_text}")
+            else:
+                for key, handler in self.bonus_handlers.items():
+                    if key in effect_name:
+                        try:
+                            bonus_text = handler(bonus_value, effect_name)
+                            print(f"effect_name contains: {key}, bonus_text: {bonus_text}")
+                        except Exception as e:
+                            print(f"处理加成时出错: {e}")
+                        break
+        
+        # 然后检查英文属性名称（完全匹配）
+        if bonus_text is None:
+            if attr_name in self.bonus_handlers:
+                try:
+                    bonus_text = self.bonus_handlers[attr_name](bonus_value, effect_name)
+                    print(f"attr_name: {attr_name}, effect_name: {effect_name}, bonus_text: {bonus_text}")
+                except Exception as e:
+                    print(f"处理加成时出错: {e}")
         
         # 然后检查英文属性名称（包含匹配）
         if bonus_text is None:
@@ -1389,29 +998,9 @@ class EveESIPlugin(Star):
                 if key in attr_name:
                     try:
                         bonus_text = handler(bonus_value, effect_name)
-                        logger.info(f"使用英文属性名称包含匹配: {key} in {attr_name} -> {bonus_text}")
+                        print(f"attr_name contains: {key}, bonus_text: {bonus_text}")
                     except Exception as e:
-                        logger.error(f"处理加成时出错: {e}")
-                    break
-        
-        # 然后检查效果名称（完全匹配）
-        if bonus_text is None:
-            if effect_name in self.bonus_handlers:
-                try:
-                    bonus_text = self.bonus_handlers[effect_name](bonus_value, effect_name)
-                    logger.info(f"使用效果名称完全匹配: {effect_name} -> {bonus_text}")
-                except Exception as e:
-                    logger.error(f"处理加成时出错: {e}")
-        
-        # 然后检查效果名称（包含匹配）
-        if bonus_text is None:
-            for key, handler in self.bonus_handlers.items():
-                if key in effect_name:
-                    try:
-                        bonus_text = handler(bonus_value, effect_name)
-                        logger.info(f"使用效果名称包含匹配: {key} in {effect_name} -> {bonus_text}")
-                    except Exception as e:
-                        logger.error(f"处理加成时出错: {e}")
+                        print(f"处理加成时出错: {e}")
                     break
         
         # 最后检查中文属性名称（包含匹配）
@@ -1420,9 +1009,9 @@ class EveESIPlugin(Star):
                 if key in bonus_attribute:
                     try:
                         bonus_text = handler(bonus_value, effect_name)
-                        logger.info(f"使用中文属性名称包含匹配: {key} in {bonus_attribute} -> {bonus_text}")
+                        print(f"attr_name: {attr_name}, effect_name: {effect_name}, bonus_attribute: {bonus_attribute}, bonus_text: {bonus_text}")
                     except Exception as e:
-                        logger.error(f"处理加成时出错: {e}")
+                        print(f"处理加成时出错: {e}")
                     break
         
         # 如果没有找到处理函数，使用通用格式
@@ -1430,28 +1019,49 @@ class EveESIPlugin(Star):
             # 处理伤害量调整
             if 'damageMultiplier' in attr_name:
                 bonus_text = self._handle_damage_bonus(bonus_value, effect_name, bonus_attribute)
-                logger.info(f"使用伤害量调整处理: {bonus_text}")
+                print(f"attr_name: {attr_name}, effect_name: {effect_name}, bonus_attribute: {bonus_attribute}, bonus_text: {bonus_text}")
             # 处理打捞装置运转周期
             elif 'SalvageCycle' in attr_name:
                 bonus_text = f"{self._format_bonus_value(abs(bonus_value))}% 打捞装置运转周期降低"
-                logger.info(f"使用打捞装置运转周期处理: {bonus_text}")
+                print(f"attr_name: {attr_name}, effect_name: {effect_name}, bonus_attribute: {bonus_attribute}, bonus_text: {bonus_text}")
             # 处理扫描强度基数
             elif 'scanStrengthBonus' in attr_name:
                 bonus_text = f"{self._format_bonus_value(bonus_value)}% 核心和作战扫描探针强度加成"
-                logger.info(f"使用扫描强度基数处理: {bonus_text}")
+                print(f"attr_name: {attr_name}, effect_name: {effect_name}, bonus_attribute: {bonus_attribute}, bonus_text: {bonus_text}")
+            # 处理Base Maximum Deviation
+            elif 'Base Maximum Deviation' in bonus_attribute or 'baseMaxScanDeviation' in attr_name:
+                bonus_text = f"{self._format_bonus_value(abs(bonus_value))}% 核心和作战扫描探针扫描偏差减少"
+            # 处理Maximum Velocity（鱼雷飞行速度）
+            elif 'Maximum Velocity' in bonus_attribute and 'Torpedo' in effect_name:
+                bonus_text = f"{self._format_bonus_value(bonus_value)}% 鱼雷飞行速度加成"
+            # 处理Maximum Flight Time（鱼雷飞行时间）
+            elif 'Maximum Flight Time' in bonus_attribute and 'Torpedo' in effect_name:
+                bonus_text = f"{self._format_bonus_value(bonus_value)}% 鱼雷飞行时间加成"
+            # 处理Energy transfer amount（掠能器吸取量）
+            elif 'Energy transfer amount' in bonus_attribute:
+                bonus_text = f"{self._format_bonus_value(bonus_value)}% 掠能器吸取量加成"
+            # 处理Neutralization Amount（能量中和器吸取量）
+            elif 'Neutralization Amount' in bonus_attribute:
+                bonus_text = f"{self._format_bonus_value(bonus_value)}% 能量中和器吸取量加成"
+            # 处理Capacitor Recharge time（电容回充速率）
+            elif 'Capacitor Recharge time' in bonus_attribute:
+                bonus_text = f"{self._format_bonus_value(abs(bonus_value))}% 电容回充速率加成"
+            # 处理作用时间/单次运转时间（远程装甲维修器运转周期）
+            elif '作用时间/单次运转时间' in bonus_attribute or 'duration' in attr_name:
+                bonus_text = f"{self._format_bonus_value(abs(bonus_value))}% 远程装甲维修器运转周期减少"
+                print(f"attr_name: {attr_name}, effect_name: {effect_name}, bonus_attribute: {bonus_attribute}, bonus_text: {bonus_text}")
             elif bonus_value < 0:
                 bonus_text = f"{self._format_bonus_value(abs(bonus_value))}% {bonus_attribute}"
-                logger.info(f"使用通用负加成处理: {bonus_text}")
+                print(f"attr_name: {attr_name}, effect_name: {effect_name}, bonus_attribute: {bonus_attribute}, bonus_text: {bonus_text}")
             else:
                 bonus_text = f"{self._format_bonus_value(bonus_value)}% {bonus_attribute}"
-                logger.info(f"使用通用正加成处理: {bonus_text}")
+                print(f"attr_name: {attr_name}, effect_name: {effect_name}, bonus_attribute: {bonus_attribute}, bonus_text: {bonus_text}")
         
-        logger.info(f"最终加成文本: {bonus_text}")
         return bonus_text
     
-    async def _process_bonus_without_display_name(self, bonus_value, modified_attr_id, bonus_attribute):
+    async def _process_bonus_without_display_name(self, bonus_value, modified_attr_id, bonus_attribute, session):
         """处理没有显示名称的加成"""
-        attr_info = await self.esi_request(f"/v1/dogma/attributes/{modified_attr_id}/")
+        attr_info = await self.esi_request(session, f"/v1/dogma/attributes/{modified_attr_id}/")
         if attr_info:
             attr_name = attr_info.get('name', '未知属性')
             if 'entosisCPUAdd' in attr_name:
@@ -1460,13 +1070,19 @@ class EveESIPlugin(Star):
             if 'warpCapacitorNeed' in attr_name or modified_attr_id == 153:
                 return f"{self._format_bonus_value(abs(bonus_value))}%跃迁引擎电容需求降低"
             elif 'scanProbeDeviation' in attr_name:
-                return f"{self._format_bonus_value(abs(bonus_value))}%核心和作战扫描探针扫描偏差减少"
+                return f"{self._format_bonus_value(abs(bonus_value))}% 核心和作战扫描探针扫描偏差减少"
             elif 'surveyProbeExplosionDelay' in attr_name:
-                return f"{self._format_bonus_value(abs(bonus_value))}%测量探针扫描时间减少"
+                return f"{self._format_bonus_value(abs(bonus_value))}% 测量探针扫描时间减少"
             elif 'warpFactor' in attr_name or modified_attr_id == 21:
-                return f"{self._format_bonus_value(abs(bonus_value))}%隐形装置的CPU需求降低"
+                return f"{self._format_bonus_value(abs(bonus_value))}% 隐形装置的CPU需求降低"
             elif 'warpSpeedMultiplier' in attr_name:
-                return f"{self._format_bonus_value(bonus_value)}%跃迁速度和跃迁加速加成"
+                return f"{self._format_bonus_value(bonus_value)}% 跃迁速度和跃迁加速加成"
+            # 处理Base Maximum Deviation
+            elif 'Base Maximum Deviation' in bonus_attribute:
+                return f"{self._format_bonus_value(abs(bonus_value))}% 核心和作战扫描探针扫描偏差减少"
+            # 处理审判者级的特殊情况
+            elif 'rateOfFire' in attr_name and bonus_value < 0:
+                return f"{self._format_bonus_value(abs(bonus_value))}% 小型能量炮台伤害加成"
             elif bonus_value < 0:
                 return f"{self._format_bonus_value(abs(bonus_value))}%{attr_name}"
             else:
@@ -1523,7 +1139,7 @@ class EveESIPlugin(Star):
         
         return None
     
-    def _build_result(self, item_info, skill_bonuses_dict, unique_bonuses, attr_dict, item_name_cn):
+    async def _build_result(self, item_info, skill_bonuses_dict, unique_bonuses, attr_dict, item_name_cn, dogma_effects, session):
         """构建结果文本"""
         # 如果有中文名称，使用中文名称；否则使用英文名称
         if item_name_cn:
@@ -1535,14 +1151,12 @@ class EveESIPlugin(Star):
         
         # 收集所有加成，计算最长数值长度
         all_bonuses = []
-        if '截击舰' in skill_bonuses_dict:
-            # 移除武器扰断器效果加成
-            filtered_bonuses = [bonus for bonus in skill_bonuses_dict['截击舰'] if '武器扰断器效果加成' not in bonus]
-            all_bonuses.extend(filtered_bonuses)
+        if '突击护卫舰' in skill_bonuses_dict:
+            all_bonuses.extend(skill_bonuses_dict['突击护卫舰'])
         if '艾玛护卫舰' in skill_bonuses_dict:
             all_bonuses.extend(skill_bonuses_dict['艾玛护卫舰'])
         for skill_type, bonuses in skill_bonuses_dict.items():
-            if skill_type not in ['截击舰', '艾玛护卫舰']:
+            if skill_type not in ['突击护卫舰', '艾玛护卫舰']:
                 all_bonuses.extend(bonuses)
         all_bonuses.extend(unique_bonuses)
         
@@ -1568,7 +1182,7 @@ class EveESIPlugin(Star):
             amarr_bonuses = skill_bonuses_dict['艾玛护卫舰']
             ordered_amarr_bonuses = []
             
-            # 优先级顺序：维修量加成 &gt; 启动消耗减少 &gt; 武器扰断器效果 &gt; 武器扰断器最佳射程 &gt; 小型能量炮台最佳射程 &gt; 核心和作战扫描探针强度 &gt; 小型能量炮台伤害 &gt; 其他
+            # 优先级顺序：维修量加成 > 启动消耗减少 > 武器扰断器效果 > 武器扰断器最佳射程 > 小型能量炮台最佳射程 > 核心和作战扫描探针强度 > 小型能量炮台伤害 > 其他
             priority_order = [
                 '远程装甲维修器维修量加成',
                 '远程装甲维修器启动消耗减少',
@@ -1790,317 +1404,127 @@ class EveESIPlugin(Star):
         # 体积信息
         volume = item_info.get('volume', 0)
         result += f"体积: {volume} m³\n"
-        # 根据改装件尺寸推断包装体积
-        packaged_volume_map = {1: 2500, 2: 10000, 3: 50000, 4: 1000000}
-        rig_size = attr_dict.get(1547, 0)
-        if rig_size in packaged_volume_map:
-            result += f"包装体积: {packaged_volume_map[rig_size]:,} m³\n"
-        
-        # 货舱容量
-        capacity = int(item_info.get('capacity', 0))
-        result += f"货舱容量: {capacity} m³\n"
-        
-        # 无人机容量
-        drone_capacity = int(attr_dict.get(36, 0))
-        if drone_capacity > 0:
-            result += f"无人机容量: {drone_capacity} m³\n"
-        
-        # 舰船维护舱容量
-        ship_maintenance = int(attr_dict.get(908, 0))
-        if ship_maintenance > 0:
-            result += f"舰船维护舱容量: {ship_maintenance:,} m³\n"
-        
-        # 舰队机库容量
-        fleet_hangar = int(attr_dict.get(912, 0))
-        if fleet_hangar > 0:
-            result += f"舰队机库容量: {fleet_hangar:,} m³\n"
+        # 根据改装件尺寸确定无人机舱容量显示
+        drone_bay = int(attr_dict.get(1546, 0))
+        if drone_bay > 0:
+            result += f"无人机舱容量: {drone_bay} m³\n"
         
         return result
     
     def _format_skill_bonuses(self, skill_type, bonuses, max_value_length):
         """格式化技能加成"""
-        # 去重相同的加成
-        unique_bonuses = []
-        seen_bonuses = set()
-        for bonus in bonuses:
-            # 提取加成的核心部分（去除数值）
-            percent_pos = bonus.find('%')
-            if percent_pos != -1:
-                bonus_core = bonus[percent_pos+1:].strip()
-            else:
-                bonus_core = bonus.strip()
-            # 检查是否已经添加过类似的加成
-            if bonus_core not in seen_bonuses:
-                seen_bonuses.add(bonus_core)
-                unique_bonuses.append(bonus)
-        
-        if not unique_bonuses:
-            return ""
-        
         result = f"{skill_type}操作每升一级:\n"
-        for bonus in unique_bonuses:
-            formatted_bonus = self._format_bonus_line(bonus)
+        for bonus in bonuses:
             # 计算缩进
-            percent_pos = formatted_bonus.find('%')
+            percent_pos = bonus.find('%')
             if percent_pos != -1:
                 value_length = percent_pos + 1
                 # 计算数值部分的缩进，使%符号对齐
                 num_indent = ' ' * (max_value_length - value_length)
                 # 基础缩进 + 数值部分缩进 + 数值 + % + 空格 + 文字
-                result += f"  {num_indent}{formatted_bonus[:percent_pos + 1]} {formatted_bonus[percent_pos + 2:]}\n"
+                result += f"    {num_indent}{bonus[:percent_pos + 1]} {bonus[percent_pos + 1:].strip()}\n"
             else:
                 # 不带%的加成，需要与其他加成的文字部分对齐
-                # 计算总缩进：2个空格（基础缩进） + max_len（数值部分长度） + 1个空格（%后空格）
-                total_indent = 2 + max_value_length + 1
+                # 计算总缩进：4个空格（基础缩进） + max_len（数值部分长度） + 1个空格（%后空格）
+                total_indent = 4 + max_value_length + 1
                 result += f"{' ' * total_indent}{bonus}\n"
         result += "\n"
-        
         return result
-
-    async def _get_item_info(self, item_id, event, item_name_cn=''):
-        """获取物品信息的内部方法"""
-        item_info = await self.esi_request(f"/v3/universe/types/{item_id}/")
-        if item_info:
-            # 提取属性
-            attr_dict = self._extract_attributes(item_info)
-            
-            # 处理技能加成和特有加成
-            dogma_effects = item_info.get('dogma_effects', [])
-            skill_bonuses_dict, unique_bonuses = await self._process_bonuses(dogma_effects, attr_dict, self.session, item_info.get('name', ''))
-            
-            # 构建结果
-            result = self._build_result(item_info, skill_bonuses_dict, unique_bonuses, attr_dict, item_name_cn)
-            
-            yield event.plain_result(result)
-        else:
-            yield event.plain_result(f"未找到物品ID {item_id} 的信息")
-
-    async def esi_request(self, endpoint, method="GET", data=None):
-        """发送ESI请求"""
-        base_url = "https://ali-esi.evepc.163.com"
-        url = f"{base_url}{endpoint}"
+    
+    async def esi_request(self, session, endpoint):
+        """发送ESI API请求"""
+        base_url = "https://esi.evetech.net"
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+        }
         
         try:
-            # 使用类初始化时创建的session
-            if not self.session:
-                # 如果session未初始化，创建一个临时session
-                async with aiohttp.ClientSession() as session:
-                    if method == "GET":
-                        async with session.get(url) as response:
-                            if response.status == 200:
-                                return await response.json()
-                            else:
-                                logger.error(f"ESI请求失败: {response.status} - {url}")
-                                return None
-                    elif method == "POST":
-                        async with session.post(url, json=data) as response:
-                            if response.status == 200:
-                                return await response.json()
-                            else:
-                                logger.error(f"ESI请求失败: {response.status} - {url}")
-                                return None
-            else:
-                # 使用已初始化的session
-                if method == "GET":
-                    async with self.session.get(url) as response:
-                        if response.status == 200:
-                            return await response.json()
-                        else:
-                            logger.error(f"ESI请求失败: {response.status} - {url}")
-                            return None
-                elif method == "POST":
-                    async with self.session.post(url, json=data) as response:
-                        if response.status == 200:
-                            return await response.json()
-                        else:
-                            logger.error(f"ESI请求失败: {response.status} - {url}")
-                            return None
+            async with session.get(f"{base_url}{endpoint}", headers=headers) as response:
+                if response.status == 200:
+                    return await response.json()
+                else:
+                    print(f"ESI API请求失败: {response.status} - {endpoint}")
+                    return None
         except Exception as e:
-            logger.error(f"ESI请求异常: {e} - {url}")
+            print(f"ESI API请求出错: {e} - {endpoint}")
             return None
 
-    async def search_item_by_name(self, name):
-        """使用市场中心API搜索物品，如果失败则使用ESI搜索API作为备选
-        注意：市场中心API需要使用POST请求，不能使用GET请求
-        """
-        # 先尝试使用市场中心API
-        try:
-            url = "https://www.ceve-market.org/api/searchname"
-            data = {"name": name}
-            
-            # 使用类初始化时创建的session
-            if not self.session:
-                # 如果session未初始化，创建一个临时session
-                async with aiohttp.ClientSession() as session:
-                    async with session.post(url, data=data) as response:
-                        if response.status == 200:
-                            result = await response.json()
-                            logger.info(f"市场中心搜索结果: {len(result)}个物品")
-                            return result
-                        else:
-                            logger.error(f"市场中心搜索失败: {response.status}，尝试使用ESI搜索API")
-                            # 市场中心API失败，尝试使用ESI搜索API
-                            return await self._search_item_by_name_esi(name)
-            else:
-                # 使用已初始化的session
-                async with self.session.post(url, data=data) as response:
-                    if response.status == 200:
-                        result = await response.json()
-                        logger.info(f"市场中心搜索结果: {len(result)}个物品")
-                        return result
+async def test_eve_esi(ship_name):
+    """测试EVE ESI API"""
+    # 要测试的舰船名称
+    
+    async with aiohttp.ClientSession() as session:
+        # 1. 使用市场中心API搜索舰船
+        search_url = "https://www.ceve-market.org/api/searchname"
+        search_data = {
+            "name": ship_name
+        }
+        
+        async with session.post(search_url, data=search_data, headers={"Content-Type": "application/x-www-form-urlencoded"}) as response:
+            if response.status == 200:
+                try:
+                    search_result = await response.json()
+                    if search_result and len(search_result) > 0:
+                        # 获取第一个结果的typeid
+                        item_id = search_result[0]['typeid']
+                        item_name = search_result[0]['typename']
+                        print(f"找到物品: {item_name} (ID: {item_id})")
                     else:
-                        logger.error(f"市场中心搜索失败: {response.status}，尝试使用ESI搜索API")
-                        # 市场中心API失败，尝试使用ESI搜索API
-                        return await self._search_item_by_name_esi(name)
-        except Exception as e:
-            logger.error(f"市场中心搜索异常: {e}，尝试使用ESI搜索API")
-            # 市场中心API异常，尝试使用ESI搜索API
-            return await self._search_item_by_name_esi(name)
-    
-    async def _search_item_by_name_esi(self, name):
-        """使用ESI搜索API搜索物品"""
-        try:
-            base_url = "https://ali-esi.evepc.163.com/latest"
-            url = f"{base_url}/universe/ids/"
+                        print(f"未找到 {ship_name}")
+                        return
+                except Exception as e:
+                    print(f"解析市场中心API响应失败: {e}")
+                    # 使用默认的磨难级海军型ID
+                    item_id = "15322"
+                    item_name = "磨难级海军型"
+                    print(f"使用默认ID: {item_id} - {item_name}")
+            else:
+                print(f"市场中心API搜索失败: {response.status}")
+                # 使用默认的磨难级海军型ID
+                item_id = "15322"
+                item_name = "磨难级海军型"
+                print(f"使用默认ID: {item_id} - {item_name}")
+        
+        # 2. 使用ESI API获取物品信息
+        eve_esi = StandaloneEveESI()
+        item_info = await eve_esi.esi_request(session, f"/v4/universe/types/{item_id}/")
+        
+        if item_info:
+            print(f"获取到物品信息: {item_info.get('name', '未知')}")
             
-            # 使用类初始化时创建的session
-            if not self.session:
-                # 如果session未初始化，创建一个临时session
-                async with aiohttp.ClientSession() as session:
-                    async with session.post(url, json=[name]) as response:
-                        if response.status == 200:
-                            result = await response.json()
-                            inventory_types = result.get('inventory_types', [])
-                            # 转换为与市场中心API相同的格式
-                            items = []
-                            for item in inventory_types:
-                                items.append({
-                                    'typeid': item.get('id'),
-                                    'typename': item.get('name')
-                                })
-                            logger.info(f"ESI搜索API结果: {len(items)}个物品")
-                            return items
-                        else:
-                            logger.error(f"ESI搜索API失败: {response.status}")
-                            return []
+            # 3. 提取属性
+            attr_dict = eve_esi._extract_attributes(item_info)
+            
+            # 4. 获取物品的dogma effects
+            dogma_effects = item_info.get('dogma_effects', [])
+            
+            if dogma_effects:
+                print(f"找到 {len(dogma_effects)} 个效果")
+                
+                # 5. 处理加成
+                skill_bonuses_dict, unique_bonuses = await eve_esi._process_bonuses(dogma_effects, attr_dict, session, item_info.get('name', ''))
+                
+                # 6. 构建结果
+                result = await eve_esi._build_result(item_info, skill_bonuses_dict, unique_bonuses, attr_dict, item_name, dogma_effects, session)
+                
+                # 7. 输出结果
+                print("\n===== 舰船属性 =====")
+                print(result)
             else:
-                # 使用已初始化的session
-                async with self.session.post(url, json=[name]) as response:
-                    if response.status == 200:
-                        result = await response.json()
-                        inventory_types = result.get('inventory_types', [])
-                        # 转换为与市场中心API相同的格式
-                        items = []
-                        for item in inventory_types:
-                            items.append({
-                                'typeid': item.get('id'),
-                                'typename': item.get('name')
-                            })
-                        logger.info(f"ESI搜索API结果: {len(items)}个物品")
-                        return items
-                    else:
-                        logger.error(f"ESI搜索API失败: {response.status}")
-                        return []
-        except Exception as e:
-            logger.error(f"ESI搜索API异常: {e}")
-            return []
+                print("未找到物品的效果信息")
+        else:
+            print("未获取到物品信息")
 
-    def _is_skin(self, item_name):
-        """判断物品是否为涂装（SKIN）"""
-        skin_keywords = ['涂装', 'Skin', 'SKIN', 'skin']
-        return any(keyword in item_name for keyword in skin_keywords)
+if __name__ == "__main__":
+    import asyncio
+    import sys
     
-    def _is_blueprint(self, item_name):
-        """判断物品是否为蓝图"""
-        blueprint_keywords = ['蓝图', 'Blueprint', 'BLUEPRINT', 'blueprint']
-        return any(keyword in item_name for keyword in blueprint_keywords)
+    # 检查是否提供了舰船名称作为命令行参数
+    if len(sys.argv) > 1:
+        ship_name = sys.argv[1]
+    else:
+        # 默认测试舰船
+        ship_name = "执事级"
     
-    def _format_bonus_value(self, value):
-        """格式化加成数值，当有小数时保留两位小数，没有小数时保留整数"""
-        if isinstance(value, (int, float)):
-            if value.is_integer():
-                return f"{int(value)}"
-            else:
-                return f"{value:.2f}"
-        return str(value)
-    
-    def _format_bonus_line(self, bonus_text):
-        """格式化加成行，确保数值与文字之间有一个空格，并且数值后的文字第一个字符对齐"""
-        # 查找第一个%符号的位置
-        percent_pos = bonus_text.find('%')
-        if percent_pos != -1:
-            # 在%后面添加一个空格
-            formatted_text = bonus_text[:percent_pos + 1] + ' ' + bonus_text[percent_pos + 1:]
-            return formatted_text
-        return bonus_text
-    
-    def _handle_damage_bonus(self, bonus_value, effect_name, bonus_attribute):
-        """处理伤害加成"""
-        # 检查是否是无人机伤害加成
-        if 'Drone' in effect_name or 'drone' in effect_name:
-            return f"{self._format_bonus_value(bonus_value)}% 无人机伤害加成"
-        
-        # 检查是否是导弹伤害加成
-        if 'missile' in effect_name.lower() or 'rocket' in effect_name.lower():
-            # 检查是否有四种伤害类型
-            if 'emDamageBonus' in effect_name or 'explosiveDamageBonus' in effect_name or 'kineticDamageBonus' in effect_name or 'thermalDamageBonus' in effect_name:
-                # 检查效果名称中是否包含具体的导弹类型
-                if 'rocket' in effect_name.lower():
-                    return f"{self._format_bonus_value(bonus_value)}% 火箭伤害加成"
-                elif 'light' in effect_name.lower() or 'lightMissile' in effect_name.lower():
-                    return f"{self._format_bonus_value(bonus_value)}% 轻型导弹伤害加成"
-                else:
-                    return f"{self._format_bonus_value(bonus_value)}% 导弹伤害加成"
-        
-        # 检查是否是大型能量炮台伤害加成
-        if 'LEDmg' in effect_name or 'LargeEnergyTurretDamage' in effect_name or 'LargeEnergy' in effect_name or 'ABS' in effect_name or 'AmarrBattleship' in effect_name or ('ABC' in effect_name and 'Large' in effect_name):
-            return f"{self._format_bonus_value(bonus_value)}% 大型能量炮台伤害加成"
-        # 检查是否是中型能量炮台伤害加成
-        elif 'MEDmg' in effect_name or 'MediumEnergyTurretDamage' in effect_name or 'MediumEnergy' in effect_name or 'AC' in effect_name or 'AmarrCruiser' in effect_name or ('ABC' in effect_name and not 'Large' in effect_name and not 'LEDmg' in effect_name):
-            return f"{self._format_bonus_value(bonus_value)}% 中型能量炮台伤害加成"
-        # 检查是否是小型能量炮台伤害加成
-        elif 'SETDmg' in effect_name or 'SmallEnergyTurretDamage' in effect_name or 'PBonus' in effect_name or 'HTDmgBonusfixedGC' in effect_name or 'EMTDamageBonus' in effect_name or 'ETDamage' in effect_name or 'SmallEnergy' in effect_name or 'Retribution' in effect_name or bonus_attribute == '伤害量调整' or ('AF' in effect_name and 'Energy' in effect_name):
-            return f"{self._format_bonus_value(bonus_value)}% 小型能量炮台伤害加成"
-        # 检查是否是小型混合炮台伤害加成
-        elif 'HTDmg' in effect_name or 'SmallHybridTurretDamage' in effect_name or 'SmallHybrid' in effect_name:
-            return f"{self._format_bonus_value(bonus_value)}% 小型混合炮台伤害加成"
-        # 检查是否是中型混合炮台伤害加成
-        elif 'MMDmg' in effect_name or 'MediumHybridTurretDamage' in effect_name or 'MediumHybrid' in effect_name:
-            return f"{self._format_bonus_value(bonus_value)}% 中型混合炮台伤害加成"
-        # 检查是否是大型混合炮台伤害加成
-        elif 'LMDmg' in effect_name or 'LargeHybridTurretDamage' in effect_name or 'LargeHybrid' in effect_name:
-            return f"{self._format_bonus_value(bonus_value)}% 大型混合炮台伤害加成"
-        # 检查是否是小型射弹炮台伤害加成
-        elif 'SPTDmg' in effect_name or 'SmallProjectileTurretDamage' in effect_name or 'SmallProjectile' in effect_name:
-            return f"{self._format_bonus_value(bonus_value)}% 小型射弹炮台伤害加成"
-        # 检查是否是中型射弹炮台伤害加成
-        elif 'MPTDmg' in effect_name or 'MediumProjectileTurretDamage' in effect_name or 'MediumProjectile' in effect_name:
-            return f"{self._format_bonus_value(bonus_value)}% 中型射弹炮台伤害加成"
-        # 检查是否是大型射弹炮台伤害加成
-        elif 'LPTDmg' in effect_name or 'LargeProjectileTurretDamage' in effect_name or 'LargeProjectile' in effect_name:
-            return f"{self._format_bonus_value(bonus_value)}% 大型射弹炮台伤害加成"
-        
-        # 默认返回通用伤害加成
-        return f"{self._format_bonus_value(bonus_value)}% {bonus_attribute}"
-
-    @filter.command("帮助")
-    async def help_command(self, event: AstrMessageEvent):
-        """显示帮助信息"""
-        help_text = """EVE ESI 插件帮助
-
-命令列表:
-/吉他 <物品名称或ID> - 查询吉他市场价格
-/jt <物品名称或ID> - 查询吉他市场价格（短命令）
-/属性 <物品名称或ID> - 查看物品具体信息
-/简称 <全称>=<简称> - 添加简称
-/简称列表 [全称或简称] - 查看简称列表
-/简称删除 <简称> - 删除简称
-/帮助 - 显示此帮助信息
-
-提示:
-- 支持中文名称（如三钛合金）、英文名称（如Tritanium）或物品ID（如34）
-- 伊甸币（PLEX）查询：由于市场改版暂不支持
-- 模糊搜索只支持列出前10个物品，并已自动过滤涂装和蓝图，请使用详细搜索，或自行添加简称
-- 一个全称可以有多个简称，搜索任意简称都会自动转换为全称"""
-        
-        yield event.plain_result(help_text)
+    asyncio.run(test_eve_esi(ship_name))
