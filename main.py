@@ -26,7 +26,7 @@ except ImportError:
         get_effect_description
     )
 
-@register("eve_esi", "PIKApika", "EVE ESI 调用插件", "1.0.0")
+@register("eve_esi", "LZQ123PKQ", "EVE ESI 调用插件", "1.0.0")
 class EveESIPlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
@@ -1248,3 +1248,101 @@ class EveESIPlugin(Star):
 • 搜索任意简称会自动转换为全称"""
 
         yield event.plain_result(help_text)
+
+    # ==================== LLM 工具 ====================
+
+    @filter.llm_tool(name="query_jita_price")
+    async def query_jita_price_tool(self, event: AstrMessageEvent, item_name: str) -> str:
+        '''查询 EVE 吉他市场价格。适用于用户询问某个物品的价格、市场行情、买卖价等场景。
+
+        Args:
+            item_name(string): 物品名称，如"三钛合金"、"乌鸦"、"PLEX"等
+        '''
+        try:
+            # 检查简称
+            query = item_name
+            if query in self.aliases:
+                query = self.aliases[query]
+
+            # 如果是数字ID，直接查询
+            if query.isdigit():
+                buy_text, sell_text = await self._get_item_price_info(query)
+                return f"【{item_name}】吉他市场价格：\n{buy_text}\n{sell_text}"
+
+            # 否则搜索物品名称
+            market_result = await self.search_item_by_name(query)
+            if not market_result:
+                return f"未找到物品'{item_name}'"
+
+            # 过滤涂装和蓝图
+            filtered_result = [
+                item for item in market_result
+                if not self._is_skin(item.get('typename', ''))
+                and not self._is_blueprint(item.get('typename', ''))
+            ]
+
+            if not filtered_result:
+                return f"未找到'{item_name}'的有效结果（已过滤涂装和蓝图）"
+
+            # 查询第一个结果的价格
+            item = filtered_result[0]
+            item_id = str(item.get('typeid', ''))
+            item_name_found = item.get('typename', item_name)
+            buy_text, sell_text = await self._get_item_price_info(item_id)
+
+            return f"【{item_name_found}】吉他市场价格：\n{buy_text}\n{sell_text}"
+
+        except Exception as e:
+            logger.error(f"LLM工具查询价格失败: {e}")
+            return f"查询'{item_name}'价格时出错：{str(e)}"
+
+    @filter.llm_tool(name="query_ship_bonus")
+    async def query_ship_bonus_tool(self, event: AstrMessageEvent, ship_name: str) -> str:
+        '''查询 EVE 舰船的技能加成和特有加成。适用于用户询问某艘船的加成信息、舰船特性、技能加成等场景。
+
+        Args:
+            ship_name(string): 舰船名称，如"乌鸦级"、"狂热级"、"十字军"等
+        '''
+        try:
+            # 检查简称
+            query = ship_name
+            if query in self.aliases:
+                query = self.aliases[query]
+
+            # 搜索舰船
+            market_result = await self.search_item_by_name(query)
+            if not market_result:
+                return f"未找到舰船'{ship_name}'"
+
+            # 过滤涂装和蓝图
+            filtered_result = [
+                item for item in market_result
+                if not self._is_skin(item.get('typename', ''))
+                and not self._is_blueprint(item.get('typename', ''))
+            ]
+
+            if not filtered_result:
+                return f"未找到'{ship_name}'的有效结果"
+
+            # 获取第一个结果的详细信息
+            item = filtered_result[0]
+            item_id = str(item.get('typeid', ''))
+            item_name_found = item.get('typename', ship_name)
+
+            # 获取物品信息
+            item_info = await self.esi_request(f"/v3/universe/types/{item_id}/")
+            if not item_info:
+                return f"无法获取'{item_name_found}'的详细信息"
+
+            # 提取属性和处理加成
+            attr_dict = self._extract_attributes(item_info)
+            dogma_effects = item_info.get('dogma_effects', [])
+            skill_bonuses_dict, unique_bonuses = await self._process_bonuses(dogma_effects, attr_dict, self.session, item_name_found)
+
+            # 构建结果
+            result = self._build_result(item_info, skill_bonuses_dict, unique_bonuses, attr_dict, item_name_found)
+            return result
+
+        except Exception as e:
+            logger.error(f"LLM工具查询加成失败: {e}")
+            return f"查询'{ship_name}'加成时出错：{str(e)}"
