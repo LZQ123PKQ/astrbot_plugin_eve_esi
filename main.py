@@ -856,7 +856,7 @@ class EveESIPlugin(Star):
             attr_names_str = '/'.join(attr_names)
 
             # 获取描述（传入 operator）
-            bonus_text = await self._process_bonus(bonus_value, bonus_attribute, effect_name, first_mod.get('modified_attribute_id'), operator)
+            bonus_text = await self._process_bonus(bonus_value, bonus_attribute, effect_name, first_mod.get('modified_attribute_id'), operator, attr_names_str)
             if not bonus_text:
                 continue
 
@@ -890,7 +890,7 @@ class EveESIPlugin(Star):
 
         return skill_bonuses_list, unique_bonuses_list
     
-    async def _process_bonus(self, bonus_value, bonus_attribute, effect_name, modified_attr_id, operator=6):
+    async def _process_bonus(self, bonus_value, bonus_attribute, effect_name, modified_attr_id, operator=6, attr_names_str=''):
         """处理单个加成，根据 operator 格式化输出
         
         operator 规则：
@@ -901,17 +901,16 @@ class EveESIPlugin(Star):
         7: PostMul - 15000→15秒 放在描述后边，并且描述前边加一个·
         0.0: 不写数值，并且描述前边加一个·
         """
-        # 首先尝试从 effect_dict 获取描述（基于 zidian1.txt）
-        desc_from_dict = get_effect_description(effect_name, bonus_value)
+        # 首先尝试从 effect_dict 获取描述（基于 zidian1.txt），传入 operator
+        desc_from_dict = get_effect_description(effect_name, bonus_value, operator)
         if desc_from_dict and '未知加成' not in desc_from_dict:
-            # 如果描述已经包含数值格式，直接返回
             return desc_from_dict
         
         # 如果 effect_dict 中没有找到，根据 operator 格式化
         return self._format_by_operator(abs(bonus_value), bonus_attribute, operator)
     
     def _format_by_operator(self, value, bonus_attribute, operator):
-        """根据 operator 格式化输出"""
+        """根据 operator 格式化输出（备用，当 effect_dict 中没有描述时使用）"""
         # 0.0 的情况：不写数值，描述前边加·
         if value == 0.0:
             return f"·{bonus_attribute}加成"

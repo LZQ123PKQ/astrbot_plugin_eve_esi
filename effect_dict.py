@@ -281,17 +281,26 @@ def modifying_attr_is_skill_bonus(modifying_attr_name):
                 return True
     return False
 
-def get_effect_description(effect_name, bonus_value, effect_descriptions=None):
+def get_effect_description(effect_name, bonus_value, operator=6, effect_descriptions=None):
     """
-    获取 effect 的描述文本
+    获取 effect 的描述文本，根据 operator 格式化输出
     
     Args:
         effect_name: effect 名称
         bonus_value: 加成数值
+        operator: operator 类型（0, 2, 4, 6, 7 等），默认 6 (PostPercent)
         effect_descriptions: effect 描述字典（可选，默认从文件加载）
     
     Returns:
         描述文本或 None
+    
+    operator 规则：
+    0: PreAssignment - 0.0035→1-0.0035=99.65% 放在描述前边
+    2: PreDiv - 10.0→10+ 放在描述前边
+    4: Add - 0.5→50% 放在描述前边
+    6: PostPercent - 5.0→5% 放在描述前边
+    7: PostMul - 15000→15秒 放在描述后边，并且描述前边加一个·
+    0.0: 不写数值，并且描述前边加一个·
     """
     if effect_descriptions is None:
         effect_descriptions = load_effect_descriptions()
@@ -302,22 +311,34 @@ def get_effect_description(effect_name, bonus_value, effect_descriptions=None):
     desc_info = effect_descriptions[effect_name]
     template = desc_info['template']
     
-    # 替换 xx% 为实际数值
-    if 'xx%' in template:
-        # 格式化数值
-        if isinstance(bonus_value, (int, float)):
-            formatted_value = f"{abs(bonus_value):.2f}%"
-        else:
-            formatted_value = str(bonus_value)
-        return template.replace('xx%', formatted_value)
-    elif 'xx＋' in template:
-        if isinstance(bonus_value, (int, float)):
-            formatted_value = f"{abs(bonus_value):.0f}＋"
-        else:
-            formatted_value = str(bonus_value)
-        return template.replace('xx＋', formatted_value)
+    # 移除模板中的 xx% 或 xx＋，根据 operator 重新格式化
+    # 提取纯描述（去掉数值前缀）
+    pure_desc = template.replace('xx%', '').replace('xx＋', '').strip()
+    
+    # 0.0 的情况：不写数值，描述前边加·
+    if bonus_value == 0.0:
+        return f"·{pure_desc}"
+    
+    value = abs(bonus_value)
+    
+    if operator == 0:
+        # PreAssignment: 0.0035→1-0.0035=99.65% 放在描述前边
+        percent = (1 - value) * 100
+        return f"{percent:.2f}% {pure_desc}"
+    elif operator == 2:
+        # PreDiv: 10.0→10+ 放在描述前边
+        return f"{value:.2f}+ {pure_desc}"
+    elif operator == 4:
+        # Add: 0.5→50% 放在描述前边
+        percent = value * 100
+        return f"{percent:.2f}% {pure_desc}"
+    elif operator == 7:
+        # PostMul: 15000→15秒 放在描述后边，描述前边加·
+        seconds = value / 1000
+        return f"·{pure_desc} {seconds:.2f}秒"
     else:
-        return template
+        # 默认 PostPercent (6): 5.0→5% 放在描述前边
+        return f"{value:.2f}% {pure_desc}"
 
 # 不显示的 effect 列表
 HIDDEN_EFFECTS = [
