@@ -1,0 +1,202 @@
+舰船加成分类判断规则
+========================
+
+判断依据：modifying_attribute的名字（不区分大小写）
+
+一、精英加成（eliteBonus）- 特殊舰船类型
+--------------------------------------------------
+突击护卫舰操作：
+  eliteBonusGunship1 / eliteBonusGunship2 / eliteBonusGunships / eliteBonusAssaultShips1
+截击舰操作：
+  eliteBonusInterceptor / eliteBonusInterceptor2 
+隐形特勤舰操作：
+  eliteBonusCovertOps1 / eliteBonusCovertOps2 / eliteBonusCovertOps3 / eliteBonusCovertOps4
+后勤护卫舰操作：
+  eliteBonusLogiFrig1 / eliteBonusLogiFrig2
+电子攻击舰操作：
+  eliteBonusElectronicAttackShip1 / eliteBonusElectronicAttackShip2 / eliteBonusElectronicAttackShip3
+重型突击巡洋舰操作：
+  eliteBonusHeavyGunship1 / eliteBonusHeavyGunship2
+侦察舰操作：
+  eliteBonusReconShip1 / eliteBonusReconShip2 / eliteBonusReconShip3
+隐形轰炸舰操作：
+  eliteBonusBombers
+后勤舰操作：
+  eliteBonusLogistics1 / eliteBonusLogistics2 / eliteBonusLogistics3 / eliteBonusLogistics4
+指挥舰操作：
+  eliteBonusCommandShips1 / eliteBonusCommandShips2 / eliteBonusCommandShips3 / eliteBonusCommandShips4
+指挥驱逐舰操作：
+  eliteBonusCommandDestroyer1 / eliteBonusCommandDestroyer2 / eliteBonusCommandDestroyer3
+重型拦截舰操作：
+  eliteBonusHeavyInterdictors1 / eliteBonusHeavyInterdictors2 / eliteBonusHeavyInterdictors3
+拦截舰操作：
+  eliteBonusInterdictors1 / eliteBonusInterdictors2
+探险舰操作：
+  eliteBonusExpedition1 / eliteBonusExpedition2
+护卫型工业舰操作：
+  eliteBonusEscorts
+工业舰操作：
+  eliteBonusIndustrial1 / eliteBonusIndustrial2
+战列巡洋舰操作：
+  eliteBonusBattlecruiser
+驱逐舰操作：
+  eliteBonusdestroyers
+黑隐特勤舰操作：
+  eliteBonusBlackOps1 / eliteBonusBlackOps2 / eliteBonusBlackOps3 / eliteBonusBlackOps4
+跳跃货舰操作：
+  eliteBonusJumpFreighter1 / eliteBonusJumpFreighter2
+采矿驳船操作：
+  eliteBonusBarge1 / eliteBonusBarge2
+暴乱者操作：
+  eliteBonusViolators1 / eliteBonusViolators2 / eliteBonusViolators3 / eliteBonusViolators4 / eliteBonusViolators5
+  eliteBonusViolatorsRole1 / eliteBonusViolatorsRole2 / eliteBonusViolatorsRole3
+旗舰巡洋舰操作：
+  eliteBonusFlagCruisers1
+掠夺舰操作：
+  eliteBonusMarauder
+
+二、舰船基础加成（shipBonus）- 各阵营完整格式
+--------------------------------------------------
+阵营缩写：A=Amarr(艾玛), C=Caldari(加达里), G=Gallente(盖伦特), M=Minmatar(米玛塔尔)
+
+艾玛（Amarr）：
+护卫舰: shipBonusAF / shipBonus1AF / shipBonus2AF / shipBonus3AF
+驱逐舰: shipBonusAD1 / shipBonusAD2/NavyDestroyerAmarr
+巡洋舰: shipBonusAC / shipBonusAC2 / shipBonusAC3
+战列巡洋舰: shipBonusABC1 / shipBonusABC2 / shipBonusABC3
+战列舰: shipBonusAB / shipBonusAB2 / shipBonusAB3
+
+加达里（Caldari）：
+护卫舰: shipBonusCF / shipBonusCF2 / shipBonus3CF
+驱逐舰: shipBonusCD1 / shipBonusCD2/NavyDestroyerCaldari
+巡洋舰: shipBonusCC / shipBonusCC2 / shipBonusCC3
+战列巡洋舰: shipBonusCBC1 / shipBonusCBC2 / shipBonusCBC3 / shipBonusCBC4
+战列舰: shipBonusCB / shipBonusCB3 / shipBonusCB2
+
+盖伦特（Gallente）：
+护卫舰: shipBonusGF / shipBonusGF2 / shipBonus3GF
+驱逐舰: shipBonusGD1 / shipBonusGD2/NavyDestroyerGallente
+巡洋舰: shipBonusGC / shipBonusGC2 / shipBonusGC3
+战列巡洋舰: shipBonusGBC1 / shipBonusGBC2 / shipBonusGBC3
+战列舰: shipBonusGB / shipBonusGB2 / shipBonusGB3
+
+米玛塔尔（Minmatar）：
+护卫舰: shipBonusMF / shipBonusMF2 / shipBonus3MF
+驱逐舰: shipBonusMD1 / shipBonusMD2/NavyDestroyerMinmatar
+巡洋舰: shipBonusMC / shipBonusMC2
+战列巡洋舰: shipBonusMBC1 / shipBonusMBC2 / shipBonusMBC3
+战列舰: shipBonusMB / shipBonusMB2
+
+三、战术/战略舰船加成
+
+战术驱逐舰（TacticalDestroyer）归类到对应阵营的战术驱逐舰操作：
+- TacticalDestroyerAmarr     → 艾玛战术驱逐舰操作
+- TacticalDestroyerCaldari   → 加达里战术驱逐舰操作
+- TacticalDestroyerGallente  → 盖伦特战术驱逐舰操作
+- TacticalDestroyerMinmatar  → 米玛塔尔战术驱逐舰操作
+
+战略巡洋舰（StrategicCruiser）归类到对应阵营的战略巡洋舰操作：
+- StrategicCruiserAmarr     → 艾玛战略巡洋舰操作
+- StrategicCruiserCaldari   → 加达里战略巡洋舰操作
+- StrategicCruiserGallente  → 盖伦特战略巡洋舰操作
+- StrategicCruiserMinmatar  → 米玛塔尔战略巡洋舰操作
+
+四、角色加成（roleBonus）
+--------------------------------------------------
+roleBonus / roleBonusOverheatDST / roleBonusCBC 等 → 特有加成
+
+五、不显示的加成（应跳过）
+--------------------------------------------------
+entosisCPUPenalty (entosisCPUAdd相关) → 不显示，entosis的CPU惩罚
+covertOpsWarpResistance (warpFactor相关) → 不显示，跃迁抗性被动能力
+
+六、能量炮台大小规律
+--------------------------------------------------
+| 舰船类型 | 后缀 | 能量炮台大小 |
+|---------|------|------------|
+| 护卫舰/驱逐舰 | F/D | 小型能量炮台 |
+| 巡洋舰 | C | 中型能量炮台 |
+| 战列舰 | B | 大型能量炮台 |
+
+战列巡洋舰(ABC/CBC/GBC/MBC)比较特殊，可能同时有中型和大型：
+- 看modifying_attribute是否包含`bcLarge` → 大型能量炮台
+- 看Effect名字是否包含`Large` → 大型能量炮台
+- 其他情况默认中型
+
+部分Effect名称中也会标注大小：
+- Small / SET / SmallEnergy → 小型
+- Medium / METC → 中型
+- Large / bcLarge → 大型
+
+七、Operator操作符含义（ESI返回）
+--------------------------------------------------
+| operator值 | 含义 | 说明 |
+|-----------|------|------|
+| 0 | PreAssignment | 预赋值，消耗/需求类属性用 (1-value)×100 计算降低百分比 |
+| 1 | Assignment | 赋值（直接显示数值） |
+| 2 | Add | 加上一个绝对值（取绝对值显示） |
+| 4 | Multiply | 乘以一个倍数（取绝对值显示） |
+| 6 | PercentAdd | 百分比加成（取绝对值显示） |
+
+八、数值正负和符号规律
+--------------------------------------------------
+```python
+def get_display_text(modified_attr_name, operator, value):
+    abs_value = abs(value)
+
+    # operator=0 - 消耗/需求类用 (1-value)×100 计算
+    if operator == 0:
+        if modified_attr_name in ['power', 'cpu', 'capacitor']:
+            return f"{(1 - value) * 100}% 需求降低"
+        return f"{value} (直接赋值)"
+
+    # operator=1 - 直接显示数值
+    if operator == 1:
+        return f"{value} (直接赋值)"
+
+    # operator=2/4/6 - 取绝对值显示
+    # 1. 消耗/周期/时间类
+    if modified_attr_name in ['duration', 'capacitorNeed', 'cpu', 'power']:
+        return f"{abs_value}% 消耗减少"
+    # 2. 病毒强度
+    if modified_attr_name == 'virusStrength':
+        return f"{abs_value}＋ 病毒强度加成"
+    # 3. 抗性类
+    if 'Resonance' in modified_attr_name or 'Resistance' in modified_attr_name:
+        return f"{abs_value}% 抗性加成"
+    # 4. 其他
+    return f"{abs_value}% 加成"
+```
+
+常见modified_attribute分类：
+| 类别 | 属性名 | 显示 |
+|------|-------|------|
+| 消耗/需求 | capacitorNeed, cpu, power, capacitor | 消耗减少 |
+| 时间/周期 | duration, reloadTime, chargeRechargeTime | 时间减少 |
+| 强度/容量 | baseSensorStrength, capacity, capacitorCapacity | 加成 |
+| 伤害/倍率 | damageMultiplier, droneDamage | 伤害加成 |
+| 射程/距离 | maxRange, falloff, optimalRange | 射程加成 |
+| 速度/追踪 | maxVelocity, speed, trackingSpeed | 速度加成 |
+| 抗性 | *EmDamageResonance等 | 抗性加成 |
+| 病毒 | virusStrength | ＋加成 |
+
+九、判断优先级
+--------------------------------------------------
+1. eliteBonusGunship           → 突击护卫舰操作
+2. eliteBonusInterceptor       → 截击舰操作
+3. eliteBonusCovertOps         → 隐形特勤舰操作
+4. eliteBonusLogiFrig          → 后勤护卫舰操作
+5. eliteBonusElectronicAttack   → 电子攻击舰操作
+6. NavyDestroyer*     → 各阵营海军驱逐舰操作
+7. TacticalDestroyer* → 各阵营战术驱逐舰操作
+8. StrategicCruiser*  → 各阵营战略巡洋舰操作
+9. *BC（ABC/CBC/GBC/MBC）→ 各阵营战列巡洋舰操作
+10. *C（AC/CC/GC/MC）   → 各阵营巡洋舰操作
+11. *D（AD/CD/GD/MD）   → 各阵营驱逐舰操作
+12. *F（AF/CF/GF/MF）   → 各阵营护卫舰操作
+13. *B（AB/CB/GB/MB）   → 各阵营战列舰操作
+14. 其他                    → 特有加成
+
+不显示的加成（需跳过）：
+- entosisCPUPenalty → entosisCPUAdd相关
+- covertOpsWarpResistance → warpFactor相关

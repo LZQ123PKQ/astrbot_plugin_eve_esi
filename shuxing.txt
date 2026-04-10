@@ -1,0 +1,4043 @@
+================================================================================
+前9个舰船的ESI原始数据
+包含完整的attribute_id和实际值
+================================================================================
+
+================================================================================
+富豪级 (富豪级)
+  物品ID: 29248
+    艾玛护卫舰操作每升一级:
+      7.50% 核心和作战扫描探针强度加成
+      5% 打捞装置运转周期降低
+    特有加成:
+      5＋ 遗迹分析仪和数据分析仪病毒强度加成
+
+
+  --- ESI Effect 详细信息 ---
+
+  Effect 1: shipBonusSalvageCycleAF (ID: 5036)
+    艾玛护卫舰操作每升一级:
+      5% 打捞装置运转周期降低
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 73
+      属性名称(name): duration
+      显示名称(display_name): Activation time / duration
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 464
+      属性名称: shipBonusAF
+      显示名称:
+      ★ 实际加成值: -5.0
+
+  Effect 2: shipBonusScanProbeStrength2AF (ID: 5119)
+    艾玛护卫舰操作每升一级:
+      7.50% 核心和作战扫描探针强度加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 1371
+      属性名称(name): baseSensorStrength
+      显示名称(display_name): Base Sensor Strength
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 485
+      属性名称: shipBonus2AF
+      显示名称:
+      ★ 实际加成值: 7.5
+
+  Effect 3: minigameVirusStrengthBonus (ID: 5460)
+    特有加成:
+      5＋ 遗迹分析仪和数据分析仪病毒强度加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 1910
+      属性名称(name): virusStrength
+      显示名称(display_name): Virus Strength
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1918
+      属性名称: virusStrengthBonus
+      显示名称: Analyzer Virus Strength Bonus
+      ★ 实际加成值: 5.0
+    Modifier 2:
+      --- 被修改的属性 ---
+      modified_attribute_id: 1910
+      属性名称(name): virusStrength
+      显示名称(display_name): Virus Strength
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1918
+      属性名称: virusStrengthBonus
+      显示名称: Analyzer Virus Strength Bonus
+      ★ 实际加成值: 5.0
+
+================================================================================
+【2】巨神兵级 (巨神兵级)
+物品ID: 591
+================================================================================
+
+jiacheng.txt输出:
+  艾玛护卫舰操作每升一级:
+    10% 小型能量炮台启动消耗减少
+    5% 小型能量炮台伤害加成
+
+
+--- ESI Effect 详细信息 ---
+
+  Effect 1: shipEnergyTCapNeedBonusAF (ID: 511)
+    艾玛护卫舰操作每升一级:
+      10% 小型能量炮台启动消耗减少
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 6
+      属性名称(name): capacitorNeed
+      显示名称(display_name): Activation Cost
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 485
+      属性名称: shipBonus2AF
+      显示名称:
+      ★ 实际加成值: -10.0
+
+  Effect 2: shipSETDmgBonusAF (ID: 514)
+    艾玛护卫舰操作每升一级:
+      5% 小型能量炮台伤害加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 64
+      属性名称(name): damageMultiplier
+      显示名称(display_name): Damage Modifier
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 464
+      属性名称: shipBonusAF
+      显示名称:
+      ★ 实际加成值: 5.0
+
+================================================================================
+【3】惩罚者级 (惩罚者级)
+物品ID: 597
+================================================================================
+
+jiacheng.txt输出:
+  艾玛护卫舰操作每升一级:
+    10% 小型能量炮台启动消耗减少
+    4% 装甲抗性加成
+
+
+--- ESI Effect 详细信息 ---
+
+  Effect 1: shipEnergyTCapNeedBonusAF (ID: 511)
+    艾玛护卫舰操作每升一级:
+      10% 小型能量炮台启动消耗减少
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 6
+      属性名称(name): capacitorNeed
+      显示名称(display_name): Activation Cost
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 485
+      属性名称: shipBonus2AF
+      显示名称:
+      ★ 实际加成值: -10.0
+
+  Effect 2: shipArmorEMResistanceAF1 (ID: 1804)
+    艾玛护卫舰操作每升一级:
+      4% 装甲电磁抗性加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 267
+      属性名称(name): armorEmDamageResonance
+      显示名称(display_name): Armor EM Damage Resistance
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 464
+      属性名称: shipBonusAF
+      显示名称:
+      ★ 实际加成值: -4.0
+
+  Effect 3: shipArmorTHResistanceAF1 (ID: 1805)
+    艾玛护卫舰操作每升一级:
+      4% 装甲热能抗性加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 270
+      属性名称(name): armorThermalDamageResonance
+      显示名称(display_name): Armor Thermal Damage Resistance
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 464
+      属性名称: shipBonusAF
+      显示名称:
+      ★ 实际加成值: -4.0
+
+  Effect 4: shipArmorKNResistanceAF1 (ID: 1806)
+    艾玛护卫舰操作每升一级:
+      4% 装甲动能抗性加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 269
+      属性名称(name): armorKineticDamageResonance
+      显示名称(display_name): Armor Kinetic Damage Resistance
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 464
+      属性名称: shipBonusAF
+      显示名称:
+      ★ 实际加成值: -4.0
+
+  Effect 5: shipArmorEXResistanceAF1 (ID: 1807)
+    艾玛护卫舰操作每升一级:
+      4% 装甲爆炸抗性加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 268
+      属性名称(name): armorExplosiveDamageResonance
+      显示名称(display_name): Armor Explosive Damage Resistance
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 464
+      属性名称: shipBonusAF
+      显示名称:
+      ★ 实际加成值: -4.0
+
+================================================================================
+【4】检察官级 (检察官级)
+物品ID: 590
+================================================================================
+
+jiacheng.txt输出:
+  艾玛护卫舰操作每升一级:
+    10% 远程装甲维修器维修量加成
+    10% 远程装甲维修器启动消耗减少
+  特有加成:
+    50% 远程装甲维修器最佳射程加成
+    600% 远程装甲维修器失准范围加成
+
+
+--- ESI Effect 详细信息 ---
+
+  Effect 1: armorRepairProjectorMaxRangeBonus (ID: 2135)
+    特有加成:
+      50% 远程装甲维修器最佳射程加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 54
+      属性名称(name): maxRange
+      显示名称(display_name): Optimal Range
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 351
+      属性名称: maxRangeBonus
+      显示名称: Optimal Range Bonus
+      ★ 实际加成值: 50.0
+    Modifier 2:
+      --- 被修改的属性 ---
+      modified_attribute_id: 54
+      属性名称(name): maxRange
+      显示名称(display_name): Optimal Range
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 351
+      属性名称: maxRangeBonus
+      显示名称: Optimal Range Bonus
+      ★ 实际加成值: 50.0
+
+  Effect 2: shipBonusRemoteArmorRepairCapNeedAF (ID: 5109)
+    艾玛护卫舰操作每升一级:
+      10% 远程装甲维修器启动消耗减少
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 6
+      属性名称(name): capacitorNeed
+      显示名称(display_name): Activation Cost
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 464
+      属性名称: shipBonusAF
+      显示名称:
+      ★ 实际加成值: -10.0
+
+  Effect 3: shipBonusRemoteArmorRepairAmount2AF (ID: 5110)
+    艾玛护卫舰操作每升一级:
+      10% 远程装甲维修器维修量加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 84
+      属性名称(name): armorDamageAmount
+      显示名称(display_name): Armor Hitpoints Repaired
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 485
+      属性名称: shipBonus2AF
+      显示名称:
+      ★ 实际加成值: 10.0
+
+  Effect 4: armorRepairProjectorFalloffBonus (ID: 6373)
+    特有加成:
+      600% 远程装甲维修器失准范围加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 2044
+      属性名称(name): falloffEffectiveness
+      显示名称(display_name): Effectiveness Falloff
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 349
+      属性名称: falloffBonus
+      显示名称: Falloff Bonus
+      ★ 实际加成值: 600.0
+    Modifier 2:
+      --- 被修改的属性 ---
+      modified_attribute_id: 2044
+      属性名称(name): falloffEffectiveness
+      显示名称(display_name): Effectiveness Falloff
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 349
+      属性名称: falloffBonus
+      显示名称: Falloff Bonus
+      ★ 实际加成值: 600.0
+
+================================================================================
+【5】磨难级 (磨难级)
+物品ID: 2161
+================================================================================
+
+jiacheng.txt输出:
+  艾玛护卫舰操作每升一级:
+    7.50% 武器扰断器效果加成
+    10% 武器扰断器最佳射程加成
+
+
+--- ESI Effect 详细信息 ---
+
+  Effect 1: shipBonusTDOptimalBonusAF1 (ID: 5827)
+    艾玛护卫舰操作每升一级:
+      10% 武器扰断器最佳射程加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 54
+      属性名称(name): maxRange
+      显示名称(display_name): Optimal Range
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 464
+      属性名称: shipBonusAF
+      显示名称:
+      ★ 实际加成值: 10.0
+
+  Effect 2: shipBonusEwWeaponDisruptionStrengthAF2 (ID: 6354)
+    艾玛护卫舰操作每升一级:
+      7.50% 武器扰断器效果加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 767
+      属性名称(name): trackingSpeedBonus
+      显示名称(display_name): Tracking Speed Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 485
+      属性名称: shipBonus2AF
+      显示名称:
+      ★ 实际加成值: 7.5
+    Modifier 2:
+      --- 被修改的属性 ---
+      modified_attribute_id: 349
+      属性名称(name): falloffBonus
+      显示名称(display_name): Falloff Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 485
+      属性名称: shipBonus2AF
+      显示名称:
+      ★ 实际加成值: 7.5
+    Modifier 3:
+      --- 被修改的属性 ---
+      modified_attribute_id: 351
+      属性名称(name): maxRangeBonus
+      显示名称(display_name): Optimal Range Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 485
+      属性名称: shipBonus2AF
+      显示名称:
+      ★ 实际加成值: 7.5
+    Modifier 4:
+      --- 被修改的属性 ---
+      modified_attribute_id: 848
+      属性名称(name): aoeCloudSizeBonus
+      显示名称(display_name): Explosion Radius Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 485
+      属性名称: shipBonus2AF
+      显示名称:
+      ★ 实际加成值: 7.5
+    Modifier 5:
+      --- 被修改的属性 ---
+      modified_attribute_id: 847
+      属性名称(name): aoeVelocityBonus
+      显示名称(display_name): Explosion Velocity Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 485
+      属性名称: shipBonus2AF
+      显示名称:
+      ★ 实际加成值: 7.5
+    Modifier 6:
+      --- 被修改的属性 ---
+      modified_attribute_id: 596
+      属性名称(name): explosionDelayBonus
+      显示名称(display_name): Flight Time Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 485
+      属性名称: shipBonus2AF
+      显示名称:
+      ★ 实际加成值: 7.5
+    Modifier 7:
+      --- 被修改的属性 ---
+      modified_attribute_id: 547
+      属性名称(name): missileVelocityBonus
+      显示名称(display_name): Missile Velocity Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 485
+      属性名称: shipBonus2AF
+      显示名称:
+      ★ 实际加成值: 7.5
+
+================================================================================
+【6】刽子手级 (刽子手级)
+物品ID: 589
+================================================================================
+
+jiacheng.txt输出:
+  艾玛护卫舰操作每升一级:
+    10% 小型能量炮台启动消耗减少
+    5% 小型能量炮台伤害加成
+  特有加成:
+    80% 推进抑制系统启动消耗减少
+
+
+--- ESI Effect 详细信息 ---
+
+  Effect 1: shipEnergyTCapNeedBonusAF (ID: 511)
+    艾玛护卫舰操作每升一级:
+      10% 小型能量炮台启动消耗减少
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 6
+      属性名称(name): capacitorNeed
+      显示名称(display_name): Activation Cost
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 485
+      属性名称: shipBonus2AF
+      显示名称:
+      ★ 实际加成值: -10.0
+
+  Effect 2: shipSETDmgBonusAF (ID: 514)
+    艾玛护卫舰操作每升一级:
+      5% 小型能量炮台伤害加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 64
+      属性名称(name): damageMultiplier
+      显示名称(display_name): Damage Modifier
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 464
+      属性名称: shipBonusAF
+      显示名称:
+      ★ 实际加成值: 5.0
+
+  Effect 3: shipCapPropulsionJamming (ID: 3495)
+    特有加成:
+      80% 推进抑制系统启动消耗减少
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 6
+      属性名称(name): capacitorNeed
+      显示名称(display_name): Activation Cost
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1280
+      属性名称: eliteBonusInterceptorRole
+      显示名称:
+      ★ 实际加成值: -80.0
+
+================================================================================
+【7】帝国海军切割机级 (帝国海军切割机级)
+物品ID: 17703
+================================================================================
+
+jiacheng.txt输出:
+  艾玛护卫舰操作每升一级:
+    10% 小型能量炮台最佳射程加成
+    25% 小型能量炮台伤害加成
+
+
+--- ESI Effect 详细信息 ---
+
+  Effect 1: shipETDamageAF (ID: 757)
+    艾玛护卫舰操作每升一级:
+      25% 小型能量炮台伤害加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 64
+      属性名称(name): damageMultiplier
+      显示名称(display_name): Damage Modifier
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 464
+      属性名称: shipBonusAF
+      显示名称:
+      ★ 实际加成值: 25.0
+
+  Effect 2: shipETOptimalRange2AF (ID: 4482)
+    艾玛护卫舰操作每升一级:
+      10% 小型能量炮台最佳射程加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 54
+      属性名称(name): maxRange
+      显示名称(display_name): Optimal Range
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 485
+      属性名称: shipBonus2AF
+      显示名称:
+      ★ 实际加成值: 10.0
+
+================================================================================
+【8】富豪级海军型 (富豪级海军型)
+物品ID: 72907
+================================================================================
+
+jiacheng.txt输出:
+  艾玛护卫舰操作每升一级:
+    7.50% 核心和作战扫描探针强度加成
+    20% 小型能量炮台伤害加成
+  特有加成:
+    99% 扫描探针发射器CPU需求降低
+    5+ 遗迹分析仪和数据分析仪病毒强度加成
+
+
+--- ESI Effect 详细信息 ---
+
+  Effect 1: shipSETDmgBonusAF (ID: 514)
+    艾玛护卫舰操作每升一级:
+      20% 小型能量炮台伤害加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 64
+      属性名称(name): damageMultiplier
+      显示名称(display_name): Damage Modifier
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 464
+      属性名称: shipBonusAF
+      显示名称:
+      ★ 实际加成值: 20.0
+
+  Effect 2: shipBonusScanProbeStrength2AF (ID: 5119)
+    艾玛护卫舰操作每升一级:
+      7.50% 核心和作战扫描探针强度加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 1371
+      属性名称(name): baseSensorStrength
+      显示名称(display_name): Base Sensor Strength
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 485
+      属性名称: shipBonus2AF
+      显示名称:
+      ★ 实际加成值: 7.5
+
+  Effect 3: minigameVirusStrengthBonus (ID: 5460)
+    特有加成:
+      5+ 遗迹分析仪和数据分析仪病毒强度加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 1910
+      属性名称(name): virusStrength
+      显示名称(display_name): Virus Strength
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1918
+      属性名称: virusStrengthBonus
+      显示名称: Analyzer Virus Strength Bonus
+      ★ 实际加成值: 5.0
+    Modifier 2:
+      --- 被修改的属性 ---
+      modified_attribute_id: 1910
+      属性名称(name): virusStrength
+      显示名称(display_name): Virus Strength
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1918
+      属性名称: virusStrengthBonus
+      显示名称: Analyzer Virus Strength Bonus
+      ★ 实际加成值: 5.0
+
+  Effect 4: shipRoleBonusScanProbeLauncherCPU (ID: 11069)
+    特有加成:
+      99% 扫描探针发射器CPU需求降低
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 50
+      属性名称(name): cpu
+      显示名称(display_name): CPU usage
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 5048
+      属性名称: shipRoleBonusScanProbeLauncherCPU
+      显示名称:
+      ★ 实际加成值: -99.0
+
+================================================================================
+【9】磨难级海军型 (磨难级海军型)
+物品ID: 37453
+================================================================================
+
+jiacheng.txt输出:
+  艾玛护卫舰操作每升一级:
+    7.50% 武器扰断器效果加成
+    20% 小型能量炮台伤害加成
+  特有加成:
+    -85% 武器扰断器最佳射程和失准范围惩罚
+    -85% 索敌扰断器启动消耗和CPU需求降低
+
+
+--- ESI Effect 详细信息 ---
+
+  Effect 1: shipETDamageAF (ID: 757)
+    艾玛护卫舰操作每升一级:
+      20% 小型能量炮台伤害加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 64
+      属性名称(name): damageMultiplier
+      显示名称(display_name): Damage Modifier
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 464
+      属性名称: shipBonusAF
+      显示名称:
+      ★ 实际加成值: 20.0
+
+  Effect 2: roleBonusWDRange (ID: 6352)
+    特有加成:
+      -85% 武器扰断器最佳射程和失准范围惩罚
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 54
+      属性名称(name): maxRange
+      显示名称(display_name): Optimal Range
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 2091
+      属性名称: roleBonus
+      显示名称:
+      ★ 实际加成值: -85.0
+    Modifier 2:
+      --- 被修改的属性 ---
+      modified_attribute_id: 2044
+      属性名称(name): falloffEffectiveness
+      显示名称(display_name): Effectiveness Falloff
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 2091
+      属性名称: roleBonus
+      显示名称:
+      ★ 实际加成值: -85.0
+
+  Effect 3: roleBonusWDCapCPU (ID: 6353)
+    特有加成:
+      -85% 索敌扰断器启动消耗和CPU需求降低
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 50
+      属性名称(name): cpu
+      显示名称(display_name): CPU usage
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 2091
+      属性名称: roleBonus
+      显示名称:
+      ★ 实际加成值: -85.0
+    Modifier 2:
+      --- 被修改的属性 ---
+      modified_attribute_id: 6
+      属性名称(name): capacitorNeed
+      显示名称(display_name): Activation Cost
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 2091
+      属性名称: roleBonus
+      显示名称:
+      ★ 实际加成值: -85.0
+
+  Effect 4: shipBonusEwWeaponDisruptionStrengthAF2 (ID: 6354)
+    艾玛护卫舰操作每升一级:
+      7.50% 武器扰断器效果加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 767
+      属性名称(name): trackingSpeedBonus
+      显示名称(display_name): Tracking Speed Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 485
+      属性名称: shipBonus2AF
+      显示名称:
+      ★ 实际加成值: 7.5
+    Modifier 2:
+      --- 被修改的属性 ---
+      modified_attribute_id: 349
+      属性名称(name): falloffBonus
+      显示名称(display_name): Falloff Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 485
+      属性名称: shipBonus2AF
+      显示名称:
+      ★ 实际加成值: 7.5
+    Modifier 3:
+      --- 被修改的属性 ---
+      modified_attribute_id: 351
+      属性名称(name): maxRangeBonus
+      显示名称(display_name): Optimal Range Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 485
+      属性名称: shipBonus2AF
+      显示名称:
+      ★ 实际加成值: 7.5
+    Modifier 4:
+      --- 被修改的属性 ---
+      modified_attribute_id: 848
+      属性名称(name): aoeCloudSizeBonus
+      显示名称(display_name): Explosion Radius Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 485
+      属性名称: shipBonus2AF
+      显示名称:
+      ★ 实际加成值: 7.5
+    Modifier 5:
+      --- 被修改的属性 ---
+      modified_attribute_id: 847
+      属性名称(name): aoeVelocityBonus
+      显示名称(display_name): Explosion Velocity Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 485
+      属性名称: shipBonus2AF
+      显示名称:
+      ★ 实际加成值: 7.5
+    Modifier 6:
+      --- 被修改的属性 ---
+      modified_attribute_id: 596
+      属性名称(name): explosionDelayBonus
+      显示名称(display_name): Flight Time Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 485
+      属性名称: shipBonus2AF
+      显示名称:
+      ★ 实际加成值: 7.5
+    Modifier 7:
+      --- 被修改的属性 ---
+      modified_attribute_id: 547
+      属性名称(name): missileVelocityBonus
+      显示名称(display_name): Missile Velocity Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 485
+      属性名称: shipBonus2AF
+      显示名称:
+      ★ 实际加成值: 7.5
+================================================================================
+【第二部分】科洛斯级到执事级（8条船）
+================================================================================
+
+================================================================================
+【1】科洛斯级 (科洛斯级)
+物品ID: 11184
+================================================================================
+
+jiacheng.txt输出:
+  截击舰操作每升一级:
+    15%微型跃迁推进器的信号半径惩罚降低
+    7.50%小型能量炮台跟踪速度加成
+  艾玛护卫舰操作每升一级:
+    10%小型能量炮台启动消耗减少
+    10%小型能量炮台伤害加成
+  特有加成:
+    80%推进抑制系统启动消耗减少
+    100%加力燃烧器和微型跃迁推进器过载效果加成
+    60%跃迁速度和跃迁加速加成
+
+
+--- ESI Effect 详细信息 ---
+
+  Effect 1: shipEnergyTCapNeedBonusAF (ID: 511)
+    艾玛护卫舰操作每升一级:
+      10% 小型能量炮台启动消耗减少
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 6
+      属性名称(name): capacitorNeed
+      显示名称(display_name): Activation Cost
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 485
+      属性名称: shipBonus2AF
+      显示名称:
+      ★ 实际加成值: -10.0
+
+  Effect 2: shipETDamageAF (ID: 757)
+    艾玛护卫舰操作每升一级:
+      10% 小型能量炮台伤害加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 64
+      属性名称(name): damageMultiplier
+      显示名称(display_name): Damage Modifier
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 464
+      属性名称: shipBonusAF
+      显示名称:
+      ★ 实际加成值: 10.0
+
+  Effect 3: interceptor2LaserTracking (ID: 1268)
+    截击舰操作每升一级:
+      7.50% 小型能量炮台跟踪速度加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 160
+      属性名称(name): trackingSpeed
+      显示名称(display_name): Turret Tracking
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 804
+      属性名称: eliteBonusInterceptor2
+      显示名称:
+      ★ 实际加成值: 7.5
+
+  Effect 4: shipCapPropulsionJamming (ID: 3495)
+    特有加成:
+      80% 推进抑制系统启动消耗减少
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 6
+      属性名称(name): capacitorNeed
+      显示名称(display_name): Activation Cost
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1280
+      属性名称: eliteBonusInterceptorRole
+      显示名称:
+      ★ 实际加成值: -80.0
+
+  Effect 5: interceptorMWDSignatureRadiusBonus (ID: 3766)
+    截击舰操作每升一级:
+      15% 微型跃迁推进器的信号半径惩罚降低
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 554
+      属性名称(name): signatureRadiusBonus
+      显示名称(display_name): Signature Radius Modifier
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 568
+      属性名称: eliteBonusInterceptor
+      显示名称:
+      ★ 实际加成值: -15.0
+
+  Effect 6: eliteIndustrialABHeatBonus (ID: 5889)
+    特有加成:
+      100% 加力燃烧器过载效果加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 1223
+      属性名称(name): overloadSpeedFactorBonus
+      显示名称(display_name): Overload Speed Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1949
+      属性名称: roleBonusOverheatDST
+      显示名称: Overheat Bonus
+      ★ 实际加成值: 100.0
+
+  Effect 7: eliteIndustrialMWDHeatBonus (ID: 5890)
+    特有加成:
+      100% 微型跃迁推进器过载效果加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 1223
+      属性名称(name): overloadSpeedFactorBonus
+      显示名称(display_name): Overload Speed Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1949
+      属性名称: roleBonusOverheatDST
+      显示名称: Overheat Bonus
+      ★ 实际加成值: 100.0
+
+  Effect 8: entosisCPUPenalty (ID: 6170)
+    不显示
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 2041
+      属性名称(name): entosisCPUAdd
+      显示名称(display_name):
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 2042
+      属性名称: entosisCPUPenalty
+      显示名称:
+      ★ 实际加成值: 10000.0
+
+  Effect 9: roleBonusWarpSpeed (ID: 7117)
+    特有加成:
+      60% 跃迁速度和跃迁加速加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 600
+      属性名称(name): warpSpeedMultiplier
+      显示名称(display_name): Warp Speed Multiplier
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 2789
+      属性名称: shipRoleBonusWarpSpeed
+      显示名称: Warp Speed and Acceleration Bonus
+      ★ 实际加成值: 60.0
+
+================================================================================
+【2】咒灭级 (咒灭级)
+物品ID: 11186
+================================================================================
+
+jiacheng.txt输出:
+  截击舰操作每升一级:
+    15%微型跃迁推进器的信号半径惩罚降低
+    5%跃迁扰频器和跃迁扰断器最佳射程加成
+  艾玛护卫舰操作每升一级:
+    5%火箭发射器射速加成
+    4%装甲抗性加成
+  特有加成:
+    80%推进抑制系统启动消耗减少
+    80%拦截失效装置重启延迟、最大锁定距离惩罚和扫描分辨率惩罚降低
+    100%拦截失效装置持续时间加成
+    60%跃迁速度和跃迁加速加成
+
+
+--- ESI Effect 详细信息 ---
+
+  Effect 1: shipCapPropulsionJamming (ID: 3495)
+    特有加成:
+      80% 推进抑制系统启动消耗减少
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 6
+      属性名称(name): capacitorNeed
+      显示名称(display_name): Activation Cost
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1280
+      属性名称: eliteBonusInterceptorRole
+      显示名称:
+      ★ 实际加成值: -80.0
+
+  Effect 2: Interceptor2WarpScrambleRange (ID: 3514)
+    截击舰操作每升一级:
+      5% 跃迁扰频器和跃迁扰断器最佳射程加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 54
+      属性名称(name): maxRange
+      显示名称(display_name): Optimal Range
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 804
+      属性名称: eliteBonusInterceptor2
+      显示名称:
+      ★ 实际加成值: 5.0
+
+  Effect 3: interceptorMWDSignatureRadiusBonus (ID: 3766)
+    截击舰操作每升一级:
+      15% 微型跃迁推进器的信号半径惩罚降低
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 554
+      属性名称(name): signatureRadiusBonus
+      显示名称(display_name): Signature Radius Modifier
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 568
+      属性名称: eliteBonusInterceptor
+      显示名称:
+      ★ 实际加成值: -15.0
+
+  Effect 4: shipArmorResistanceAF1 (ID: 5650)
+    艾玛护卫舰操作每升一级:
+      4% 装甲抗性加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 267
+      属性名称(name): armorEmDamageResonance
+      显示名称(display_name): Armor EM Damage Resistance
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 464
+      属性名称: shipBonusAF
+      显示名称:
+      ★ 实际加成值: -4.0
+    Modifier 2:
+      --- 被修改的属性 ---
+      modified_attribute_id: 268
+      属性名称(name): armorExplosiveDamageResonance
+      显示名称(display_name): Armor Explosive Damage Resistance
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 464
+      属性名称: shipBonusAF
+      显示名称:
+      ★ 实际加成值: -4.0
+    Modifier 3:
+      --- 被修改的属性 ---
+      modified_attribute_id: 269
+      属性名称(name): armorKineticDamageResonance
+      显示名称(display_name): Armor Kinetic Damage Resistance
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 464
+      属性名称: shipBonusAF
+      显示名称:
+      ★ 实际加成值: -4.0
+    Modifier 4:
+      --- 被修改的属性 ---
+      modified_attribute_id: 270
+      属性名称(name): armorThermalDamageResonance
+      显示名称(display_name): Armor Thermal Damage Resistance
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 464
+      属性名称: shipBonusAF
+      显示名称:
+      ★ 实际加成值: -4.0
+
+  Effect 5: shipRocketRoFBonusAF2 (ID: 5939)
+    艾玛护卫舰操作每升一级:
+      5% 火箭发射器射速加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 51
+      属性名称(name): speed
+      显示名称(display_name): Rate of fire
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 485
+      属性名称: shipBonus2AF
+      显示名称:
+      ★ 实际加成值: -5.0
+
+  Effect 6: entosisCPUPenalty (ID: 6170)
+    不显示
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 2041
+      属性名称(name): entosisCPUAdd
+      显示名称(display_name):
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 2042
+      属性名称: entosisCPUPenalty
+      显示名称:
+      ★ 实际加成值: 10000.0
+
+  Effect 7: roleBonusWarpSpeed (ID: 7117)
+    特有加成:
+      60% 跃迁速度和跃迁加速加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 600
+      属性名称(name): warpSpeedMultiplier
+      显示名称(display_name): Warp Speed Multiplier
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 2789
+      属性名称: shipRoleBonusWarpSpeed
+      显示名称: Warp Speed and Acceleration Bonus
+      ★ 实际加成值: 60.0
+
+  Effect 8: interceptorNullificationRoleBonus (ID: 8120)
+    特有加成:
+      80% 拦截失效装置重启延迟、最大锁定距离惩罚和扫描分辨率惩罚降低
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 309
+      属性名称(name): maxTargetRangeBonus
+      显示名称(display_name): Maximum Targeting Range Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 2298
+      属性名称: shipBonusRole1
+      显示名称:
+      ★ 实际加成值: -80.0
+    Modifier 2:
+      --- 被修改的属性 ---
+      modified_attribute_id: 669
+      属性名称(name): moduleReactivationDelay
+      显示名称(display_name): Reactivation Delay
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 2298
+      属性名称: shipBonusRole1
+      显示名称:
+      ★ 实际加成值: -80.0
+    Modifier 3:
+      --- 被修改的属性 ---
+      modified_attribute_id: 3115
+      属性名称(name): durationHighisGood
+      显示名称(display_name): Activation time / duration
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 2299
+      属性名称: shipBonusRole2
+      显示名称:
+      ★ 实际加成值: 100.0
+    Modifier 4:
+      --- 被修改的属性 ---
+      modified_attribute_id: 565
+      属性名称(name): scanResolutionMultiplier
+      显示名称(display_name): Scan Resolution Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 2300
+      属性名称: shipBonusRole3
+      显示名称:
+      ★ 实际加成值: 80.0
+
+================================================================================
+【3】审判者级 (审判者级)
+物品ID: 11393
+================================================================================
+
+jiacheng.txt输出:
+  突击护卫舰操作每升一级:
+    10%小型能量炮台最佳射程加成
+    5%小型能量炮台伤害加成
+  艾玛护卫舰操作每升一级:
+    10%小型能量炮台启动消耗减少
+    5%小型能量炮台射速加成
+  特有加成:
+    50%微型跃迁推进器的信号半径惩罚降低
+    ·可以装配突击损伤控制装备
+
+
+--- ESI Effect 详细信息 ---
+
+  Effect 1: shipEnergyTCapNeedBonusAF (ID: 511)
+    艾玛护卫舰操作每升一级:
+      10% 小型能量炮台启动消耗减少
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 6
+      属性名称(name): capacitorNeed
+      显示名称(display_name): Activation Cost
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 485
+      属性名称: shipBonus2AF
+      显示名称:
+      ★ 实际加成值: -10.0
+
+  Effect 2: eliteBonusGunshipLaserOptimal1 (ID: 991)
+    突击护卫舰操作每升一级:
+      10% 小型能量炮台最佳射程加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 54
+      属性名称(name): maxRange
+      显示名称(display_name): Optimal Range
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 673
+      属性名称: eliteBonusGunship1
+      显示名称:
+      ★ 实际加成值: 10.0
+
+  Effect 3: eliteBonusGunshipLaserDamage2 (ID: 1179)
+    突击护卫舰操作每升一级:
+      5% 小型能量炮台伤害加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 64
+      属性名称(name): damageMultiplier
+      显示名称(display_name): Damage Modifier
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 675
+      属性名称: eliteBonusGunship2
+      显示名称:
+      ★ 实际加成值: 5.0
+
+  Effect 4: MWDSignatureRadiusRoleBonus (ID: 4902)
+    特有加成:
+      50% 微型跃迁推进器的信号半径惩罚降低
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 554
+      属性名称(name): signatureRadiusBonus
+      显示名称(display_name): Signature Radius Modifier
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1803
+      属性名称: MWDSignatureRadiusBonus
+      显示名称: MWD sig penalty and cap need bonus
+      ★ 实际加成值: -50.0
+
+  Effect 5: shipSETROFAF (ID: 7018)
+    艾玛护卫舰操作每升一级:
+      5% 小型能量炮台射速加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 51
+      属性名称(name): speed
+      显示名称(display_name): Rate of fire
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 464
+      属性名称: shipBonusAF
+      显示名称:
+      ★ 实际加成值: -5.0
+
+================================================================================
+【4】惩戒级 (惩戒级)
+物品ID: 11365
+================================================================================
+
+jiacheng.txt输出:
+  突击护卫舰操作每升一级:
+    4%装甲抗性加成
+    5%舰船电容回充速率加成
+  艾玛护卫舰操作每升一级:
+    7.50%轻型导弹和火箭伤害加成
+    5%火箭和轻型导弹发射器射速加成
+  特有加成:
+    50%微型跃迁推进器的信号半径惩罚降低
+    ·可以装配突击损伤控制装备
+
+
+--- ESI Effect 详细信息 ---
+
+  Effect 1: eliteBonusGunshipCapRecharge2 (ID: 1001)
+    突击护卫舰操作每升一级:
+      5% 舰船电容回充速率加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 55
+      属性名称(name): rechargeRate
+      显示名称(display_name): Capacitor Recharge time
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 675
+      属性名称: eliteBonusGunship2
+      显示名称:
+      ★ 实际加成值: -5.0
+
+  Effect 2: shipRocketAndLightMissileExplosiveDmgAF (ID: 3234)
+    艾玛护卫舰操作每升一级:
+      7.50% 轻型导弹和火箭爆炸伤害加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 116
+      属性名称(name): explosiveDamage
+      显示名称(display_name): Explosive damage
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 464
+      属性名称: shipBonusAF
+      显示名称:
+      ★ 实际加成值: 7.5
+
+  Effect 3: shipRocketAndLightMissileKineticDmgAF (ID: 3235)
+    艾玛护卫舰操作每升一级:
+      7.50% 轻型导弹和火箭动能伤害加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 117
+      属性名称(name): kineticDamage
+      显示名称(display_name): Kinetic damage
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 464
+      属性名称: shipBonusAF
+      显示名称:
+      ★ 实际加成值: 7.5
+
+  Effect 4: shipRocketAndLightMissileThermalDmgAF (ID: 3236)
+    艾玛护卫舰操作每升一级:
+      7.50% 轻型导弹和火箭热能伤害加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 118
+      属性名称(name): thermalDamage
+      显示名称(display_name): Thermal damage
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 464
+      属性名称: shipBonusAF
+      显示名称:
+      ★ 实际加成值: 7.5
+
+  Effect 5: shipRocketAndLightMissileEmDmgAF (ID: 3237)
+    艾玛护卫舰操作每升一级:
+      7.50% 轻型导弹和火箭电磁伤害加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 114
+      属性名称(name): emDamage
+      显示名称(display_name): EM damage
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 464
+      属性名称: shipBonusAF
+      显示名称:
+      ★ 实际加成值: 7.5
+
+  Effect 6: eliteBonusGunshipArmorEmResistance1 (ID: 3241)
+    突击护卫舰操作每升一级:
+      4% 装甲电磁抗性加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 267
+      属性名称(name): armorEmDamageResonance
+      显示名称(display_name): Armor EM Damage Resistance
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 673
+      属性名称: eliteBonusGunship1
+      显示名称:
+      ★ 实际加成值: -4.0
+
+  Effect 7: eliteBonusGunshipArmorThermalResistance1 (ID: 3242)
+    突击护卫舰操作每升一级:
+      4% 装甲热能抗性加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 270
+      属性名称(name): armorThermalDamageResonance
+      显示名称(display_name): Armor Thermal Damage Resistance
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 673
+      属性名称: eliteBonusGunship1
+      显示名称:
+      ★ 实际加成值: -4.0
+
+  Effect 8: eliteBonusGunshipArmorKineticResistance1 (ID: 3243)
+    突击护卫舰操作每升一级:
+      4% 装甲动能抗性加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 269
+      属性名称(name): armorKineticDamageResonance
+      显示名称(display_name): Armor Kinetic Damage Resistance
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 673
+      属性名称: eliteBonusGunship1
+      显示名称:
+      ★ 实际加成值: -4.0
+
+  Effect 9: eliteBonusGunshipArmorExplosiveResistance1 (ID: 3244)
+    突击护卫舰操作每升一级:
+      4% 装甲爆炸抗性加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 268
+      属性名称(name): armorExplosiveDamageResonance
+      显示名称(display_name): Armor Explosive Damage Resistance
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 673
+      属性名称: eliteBonusGunship1
+      显示名称:
+      ★ 实际加成值: -4.0
+
+  Effect 10: shipMissileSpeedBonusAF (ID: 4901)
+    艾玛护卫舰操作每升一级:
+      5% 火箭和轻型导弹发射器射速加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 51
+      属性名称(name): speed
+      显示名称(display_name): Rate of fire
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 485
+      属性名称: shipBonus2AF
+      显示名称:
+      ★ 实际加成值: -5.0
+
+  Effect 11: MWDSignatureRadiusRoleBonus (ID: 4902)
+    特有加成:
+      50% 微型跃迁推进器的信号半径惩罚降低
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 554
+      属性名称(name): signatureRadiusBonus
+      显示名称(display_name): Signature Radius Modifier
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1803
+      属性名称: MWDSignatureRadiusBonus
+      显示名称: MWD sig penalty and cap need bonus
+      ★ 实际加成值: -50.0
+
+================================================================================
+【5】咒逐级 (咒逐级)
+物品ID: 11188
+================================================================================
+
+jiacheng.txt输出:
+  隐形特勤舰操作每升一级:
+    20%隐形装置的CPU需求降低
+    10%核心和作战扫描探针强度加成
+    10%测量探针扫描时间减少
+  艾玛护卫舰操作每升一级:
+    5%核心和作战扫描探针扫描偏差减少
+    15%跃迁引擎电容需求降低
+  特有加成:
+    10+遗迹分析仪和数据分析仪病毒强度加成
+    ·可以装备隐秘行动隐形装置和隐秘诱导力场发生器
+    ·隐形装置重启延时降到5秒
+    60%跃迁速度和跃迁加速加成
+
+
+--- ESI Effect 详细信息 ---
+
+  Effect 1: covertOpsWarpResistance (ID: 706)
+    隐形特勤舰操作每升一级:
+      20% 隐形装置的CPU需求降低
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 21
+      属性名称(name): warpFactor
+      显示名称(display_name):
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 569
+      属性名称: eliteBonusCovertOps1
+      显示名称:
+      ★ 实际加成值: -20.0
+
+  Effect 2: covertOpsAndReconOpsCloakModuleDelayBonus (ID: 2252)
+    特有加成:
+      ·隐形装置重启延时降到5秒
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 669
+      属性名称(name): moduleReactivationDelay
+      显示名称(display_name): Reactivation Delay
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1034
+      属性名称: covertOpsAndReconOpsCloakModuleDelay
+      显示名称: Cloak Reactivation Delay
+      ★ 实际加成值: 5000.0
+
+  Effect 3: eliteBonusCoverOpsScanProbeStrength2 (ID: 4168)
+    隐形特勤舰操作每升一级:
+      10% 核心和作战扫描探针强度加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 1371
+      属性名称(name): baseSensorStrength
+      显示名称(display_name): Base Sensor Strength
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 839
+      属性名称: eliteBonusCovertOps2
+      显示名称:
+      ★ 实际加成值: 10.0
+
+  Effect 4: shipBonusSurveyProbeExplosionDelaySkillSurveyCovertOps3 (ID: 4479)
+    隐形特勤舰操作每升一级:
+      10% 测量探针扫描时间减少
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 281
+      属性名称(name): explosionDelay
+      显示名称(display_name): Maximum Flight Time
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1578
+      属性名称: eliteBonusCovertOps3
+      显示名称:
+      ★ 实际加成值: -10.0
+
+  Effect 5: covertOpsCloakCpuPercentBonus1 (ID: 5260)
+    隐形特勤舰操作每升一级:
+      20% 隐形装置的CPU需求降低
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 50
+      属性名称(name): cpu
+      显示名称(display_name): CPU usage
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 569
+      属性名称: eliteBonusCovertOps1
+      显示名称:
+      ★ 实际加成值: -20.0
+
+  Effect 6: minigameVirusStrengthBonus (ID: 5460)
+    特有加成:
+      10+ 遗迹分析仪和数据分析仪病毒强度加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 1910
+      属性名称(name): virusStrength
+      显示名称(display_name): Virus Strength
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1918
+      属性名称: virusStrengthBonus
+      显示名称: Analyzer Virus Strength Bonus
+      ★ 实际加成值: 10.0
+    Modifier 2:
+      --- 被修改的属性 ---
+      modified_attribute_id: 1910
+      属性名称(name): virusStrength
+      显示名称(display_name): Virus Strength
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1918
+      属性名称: virusStrengthBonus
+      显示名称: Analyzer Virus Strength Bonus
+      ★ 实际加成值: 10.0
+
+  Effect 7: roleBonusWarpSpeed (ID: 7117)
+    特有加成:
+      60% 跃迁速度和跃迁加速加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 600
+      属性名称(name): warpSpeedMultiplier
+      显示名称(display_name): Warp Speed Multiplier
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 2789
+      属性名称: shipRoleBonusWarpSpeed
+      显示名称: Warp Speed and Acceleration Bonus
+      ★ 实际加成值: 60.0
+
+  Effect 8: shipBonusWarpCapacitorNeedAF (ID: 8131)
+    艾玛护卫舰操作每升一级:
+      15% 跃迁引擎电容需求降低
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 153
+      属性名称(name): warpCapacitorNeed
+      显示名称(display_name):
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 464
+      属性名称: shipBonusAF
+      显示名称:
+      ★ 实际加成值: -15.0
+
+  Effect 9: shipBonusScanProbeDeviationA2F (ID: 8132)
+    艾玛护卫舰操作每升一级:
+      5% 核心和作战扫描探针扫描偏差减少
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 1372
+      属性名称(name): baseMaxScanDeviation
+      显示名称(display_name): Base Maximum Deviation
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 485
+      属性名称: shipBonus2AF
+      显示名称:
+      ★ 实际加成值: -5.0
+
+================================================================================
+【6】净化级 (净化级)
+物品ID: 12038
+================================================================================
+
+jiacheng.txt输出:
+  隐形特勤舰操作每升一级:
+    5%炸弹电磁伤害加成
+    15%鱼雷电磁伤害加成
+  艾玛护卫舰操作每升一级:
+    10%鱼雷飞行时间加成
+    15%鱼雷飞行速度加成
+  特有加成:
+    99.65%鱼雷发射器能量栅格需求降低
+    50%隐形装置的CPU需求降低
+    ·重新启动隐形装置后不遭受锁定延时副作用
+    ·可以装备隐秘行动隐形装置、隐秘诱导力场发生器和炸弹发射器
+    ·隐形装置重启延时降到15秒
+
+
+--- ESI Effect 详细信息 ---
+
+  Effect 1: covertOpsCpuBonus1 (ID: 896)
+    特有加成:
+      50% 隐形装置的CPU需求降低
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 50
+      属性名称(name): cpu
+      显示名称(display_name): CPU usage
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 649
+      属性名称: cloakingCpuNeedBonus
+      显示名称:
+      ★ 实际加成值: 0.5
+
+  Effect 2: covertOpsAndReconOpsCloakModuleDelayBonus (ID: 2252)
+    特有加成:
+      ·隐形装置重启延时降到15秒
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 669
+      属性名称(name): moduleReactivationDelay
+      显示名称(display_name): Reactivation Delay
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1034
+      属性名称: covertOpsAndReconOpsCloakModuleDelay
+      显示名称: Cloak Reactivation Delay
+      ★ 实际加成值: 15000.0
+
+  Effect 3: covertOpsStealthBomberTargettingDelayBonus (ID: 2253)
+    特有加成:
+      ·重新启动隐形装置后不遭受锁定延时副作用
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 560
+      属性名称(name): cloakingTargetingDelay
+      显示名称(display_name): Sensor Recalibration Time
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1035
+      属性名称: covertOpsStealthBomberTargettingDelay
+      显示名称:
+      ★ 实际加成值: 0.0
+
+  Effect 4: eliteBonusCoverOpsBombEmDmg1 (ID: 3028)
+    隐形特勤舰操作每升一级:
+      5% 炸弹电磁伤害加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 114
+      属性名称(name): emDamage
+      显示名称(display_name): EM damage
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 569
+      属性名称: eliteBonusCovertOps1
+      显示名称:
+      ★ 实际加成值: 5.0
+
+  Effect 5: covertOpsStealthBomberSiegeMissileLauncherPowerNeedBonus (ID: 3765)
+    特有加成:
+      99.65% 鱼雷发射器能量栅格需求降低
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 30
+      属性名称(name): power
+      显示名称(display_name): Powergrid Usage
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 837
+      属性名称: stealthBomberLauncherPower
+      显示名称:
+      ★ 实际加成值: 0.0035
+
+  Effect 6: shipBonusTorpedoVelocity2AF (ID: 4379)
+    艾玛护卫舰操作每升一级:
+      15% 鱼雷飞行速度加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 37
+      属性名称(name): maxVelocity
+      显示名称(display_name): Maximum Velocity
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 485
+      属性名称: shipBonus2AF
+      显示名称:
+      ★ 实际加成值: 15.0
+
+  Effect 7: shipBonusEliteCover2TorpedoEMDamage (ID: 4394)
+    隐形特勤舰操作每升一级:
+      15% 鱼雷电磁伤害加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 114
+      属性名称(name): emDamage
+      显示名称(display_name): EM damage
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 839
+      属性名称: eliteBonusCovertOps2
+      显示名称:
+      ★ 实际加成值: 15.0
+
+  Effect 8: shipBonusAF1TorpedoFlightTime (ID: 4417)
+    艾玛护卫舰操作每升一级:
+      10% 鱼雷飞行时间加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 281
+      属性名称(name): explosionDelay
+      显示名称(display_name): Maximum Flight Time
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 464
+      属性名称: shipBonusAF
+      显示名称:
+      ★ 实际加成值: 10.0
+
+================================================================================
+【7】哨兵级 (哨兵级)
+物品ID: 11190
+================================================================================
+
+jiacheng.txt输出:
+  电子攻击舰操作每升一级:
+    80%掠能器和能量中和器最佳射程加成
+    40%掠能器和能量中和器失准范围加成
+    5%电容回充速度加成
+  艾玛护卫舰操作每升一级:
+    20%掠能器和能量中和器吸取量加成
+    7.50%武器扰断器效果加成
+
+
+--- ESI Effect 详细信息 ---
+
+  Effect 1: shipEnergyDrainAmountAF1 (ID: 1215)
+    艾玛护卫舰操作每升一级:
+      20% 掠能器吸取量加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 90
+      属性名称(name): powerTransferAmount
+      显示名称(display_name): Energy transfer amount
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 464
+      属性名称: shipBonusAF
+      显示名称:
+      ★ 实际加成值: 20.0
+
+  Effect 2: shipEnergyNeutralizerTransferAmountBonusAF (ID: 3299)
+    艾玛护卫舰操作每升一级:
+      20% 能量中和器吸取量加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 97
+      属性名称(name): energyNeutralizerAmount
+      显示名称(display_name): Neutralization Amount
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 464
+      属性名称: shipBonusAF
+      显示名称:
+      ★ 实际加成值: 20.0
+
+  Effect 3: eliteBonusElectronicAttackShipRechargeRate2 (ID: 3466)
+    电子攻击舰操作每升一级:
+      5% 电容回充速度加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 55
+      属性名称(name): rechargeRate
+      显示名称(display_name): Capacitor Recharge time
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1250
+      属性名称: eliteBonusElectronicAttackShip2
+      显示名称:
+      ★ 实际加成值: -5.0
+
+  Effect 4: shipBonusEnergyNeutOptimalEAF1 (ID: 6267)
+    电子攻击舰操作每升一级:
+      80% 能量中和器最佳射程加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 54
+      属性名称(name): maxRange
+      显示名称(display_name): Optimal Range
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1249
+      属性名称: eliteBonusElectronicAttackShip1
+      显示名称:
+      ★ 实际加成值: 80.0
+
+  Effect 5: shipBonusEnergyNeutFalloffEAF3 (ID: 6272)
+    电子攻击舰操作每升一级:
+      40% 能量中和器失准范围加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 2044
+      属性名称(name): falloffEffectiveness
+      显示名称(display_name): Effectiveness Falloff
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 2069
+      属性名称: eliteBonusElectronicAttackShip3
+      显示名称:
+      ★ 实际加成值: 40.0
+
+  Effect 6: shipBonusEnergyNosOptimalEAF1 (ID: 6273)
+    电子攻击舰操作每升一级:
+      80% 掠能器最佳射程加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 54
+      属性名称(name): maxRange
+      显示名称(display_name): Optimal Range
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1249
+      属性名称: eliteBonusElectronicAttackShip1
+      显示名称:
+      ★ 实际加成值: 80.0
+
+  Effect 7: shipBonusEnergyNosFalloffEAF3 (ID: 6278)
+    电子攻击舰操作每升一级:
+      40% 掠能器失准范围加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 2044
+      属性名称(name): falloffEffectiveness
+      显示名称(display_name): Effectiveness Falloff
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 2069
+      属性名称: eliteBonusElectronicAttackShip3
+      显示名称:
+      ★ 实际加成值: 40.0
+
+  Effect 8: shipBonusEwWeaponDisruptionStrengthAF2 (ID: 6354)
+    艾玛护卫舰操作每升一级:
+      7.50% 武器扰断器效果加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 767
+      属性名称(name): trackingSpeedBonus
+      显示名称(display_name): Tracking Speed Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 485
+      属性名称: shipBonus2AF
+      显示名称:
+      ★ 实际加成值: 7.5
+    Modifier 2:
+      --- 被修改的属性 ---
+      modified_attribute_id: 349
+      属性名称(name): falloffBonus
+      显示名称(display_name): Falloff Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 485
+      属性名称: shipBonus2AF
+      显示名称:
+      ★ 实际加成值: 7.5
+    Modifier 3:
+      --- 被修改的属性 ---
+      modified_attribute_id: 351
+      属性名称(name): maxRangeBonus
+      显示名称(display_name): Optimal Range Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 485
+      属性名称: shipBonus2AF
+      显示名称:
+      ★ 实际加成值: 7.5
+    Modifier 4:
+      --- 被修改的属性 ---
+      modified_attribute_id: 848
+      属性名称(name): aoeCloudSizeBonus
+      显示名称(display_name): Explosion Radius Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 485
+      属性名称: shipBonus2AF
+      显示名称:
+      ★ 实际加成值: 7.5
+    Modifier 5:
+      --- 被修改的属性 ---
+      modified_attribute_id: 847
+      属性名称(name): aoeVelocityBonus
+      显示名称(display_name): Explosion Velocity Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 485
+      属性名称: shipBonus2AF
+      显示名称:
+      ★ 实际加成值: 7.5
+    Modifier 6:
+      --- 被修改的属性 ---
+      modified_attribute_id: 596
+      属性名称(name): explosionDelayBonus
+      显示名称(display_name): Flight Time Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 485
+      属性名称: shipBonus2AF
+      显示名称:
+      ★ 实际加成值: 7.5
+    Modifier 7:
+      --- 被修改的属性 ---
+      modified_attribute_id: 547
+      属性名称(name): missileVelocityBonus
+      显示名称(display_name): Missile Velocity Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 485
+      属性名称: shipBonus2AF
+      显示名称:
+      ★ 实际加成值: 7.5
+
+================================================================================
+【8】执事级 (执事级)
+物品ID: 37457
+================================================================================
+
+jiacheng.txt输出:
+  艾玛护卫舰操作每升一级:
+    10%远程装甲维修器维修量加成
+    10%远程装甲维修器启动消耗减少
+  后勤护卫舰每升一级:
+    5%远程装甲维修器运转周期和启动消耗减少
+    7.50%装甲值加成
+  特有加成:
+    50%远程装甲维修器最佳射程加成
+    600%远程装甲维修器失准范围加成
+
+
+--- ESI Effect 详细信息 ---
+
+  Effect 1: armorRepairProjectorMaxRangeBonus (ID: 2135)
+    特有加成:
+      50% 远程装甲维修器最佳射程加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 54
+      属性名称(name): maxRange
+      显示名称(display_name): Optimal Range
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 351
+      属性名称: maxRangeBonus
+      显示名称: Optimal Range Bonus
+      ★ 实际加成值: 50.0
+    Modifier 2:
+      --- 被修改的属性 ---
+      modified_attribute_id: 54
+      属性名称(name): maxRange
+      显示名称(display_name): Optimal Range
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 351
+      属性名称: maxRangeBonus
+      显示名称: Optimal Range Bonus
+      ★ 实际加成值: 50.0
+
+  Effect 2: shipBonusRemoteArmorRepairCapNeedAF (ID: 5109)
+    艾玛护卫舰操作每升一级:
+      10% 远程装甲维修器启动消耗减少
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 6
+      属性名称(name): capacitorNeed
+      显示名称(display_name): Activation Cost
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 464
+      属性名称: shipBonusAF
+      显示名称:
+      ★ 实际加成值: -10.0
+
+  Effect 3: shipBonusRemoteArmorRepairAmount2AF (ID: 5110)
+    艾玛护卫舰操作每升一级:
+      10% 远程装甲维修器维修量加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 84
+      属性名称(name): armorDamageAmount
+      显示名称(display_name): Armor Hitpoints Repaired
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 485
+      属性名称: shipBonus2AF
+      显示名称:
+      ★ 实际加成值: 10.0
+
+  Effect 4: armorRepairProjectorFalloffBonus (ID: 6373)
+    特有加成:
+      600% 远程装甲维修器失准范围加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 2044
+      属性名称(name): falloffEffectiveness
+      显示名称(display_name): Effectiveness Falloff
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 349
+      属性名称: falloffBonus
+      显示名称: Falloff Bonus
+      ★ 实际加成值: 600.0
+    Modifier 2:
+      --- 被修改的属性 ---
+      modified_attribute_id: 2044
+      属性名称(name): falloffEffectiveness
+      显示名称(display_name): Effectiveness Falloff
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 349
+      属性名称: falloffBonus
+      显示名称: Falloff Bonus
+      ★ 实际加成值: 600.0
+
+  Effect 5: eliteBonusLogiFrigArmorRepSpeedCap1 (ID: 6377)
+    后勤护卫舰每升一级:
+     5% 远程装甲维修器运转周期和启动消耗减少
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 73
+      属性名称(name): duration
+      显示名称(display_name): Activation time / duration
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 2092
+      属性名称: eliteBonusLogiFrig1
+      显示名称:
+      ★ 实际加成值: -5.0
+    Modifier 2:
+      --- 被修改的属性 ---
+      modified_attribute_id: 6
+      属性名称(name): capacitorNeed
+      显示名称(display_name): Activation Cost
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 2092
+      属性名称: eliteBonusLogiFrig1
+      显示名称:
+      ★ 实际加成值: -5.0
+
+  Effect 6: eliteBonusLogiFrigArmorHP2 (ID: 6379)
+    后勤护卫舰每升一级:
+      7.50% 装甲值加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 265
+      属性名称(name): armorHP
+      显示名称(display_name): Armor Hitpoints
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 2093
+      属性名称: eliteBonusLogiFrig2
+      显示名称:
+      ★ 实际加成值: 7.5
+================================================================================
+【第三部分】强制者级到灾难级海军型（19条船）
+================================================================================
+
+================================================================================
+【1】强制者级 (强制者级)
+物品ID: 16236
+================================================================================
+
+jiacheng.txt输出:
+  艾玛驱逐舰操作每升一级:
+    10%小型能量炮台跟踪速度加成
+    10%小型能量炮台启动消耗减少
+  特有加成:
+    50%小型能量炮台最佳射程加成
+
+
+--- ESI Effect 详细信息 ---
+
+  Effect 1: smallEnergyMaxRangeBonus (ID: 2131)
+    特有加成:
+      50% 小型能量炮台最佳射程加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 54
+      属性名称(name): maxRange
+      显示名称(display_name): Optimal Range
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 351
+      属性名称: maxRangeBonus
+      显示名称: Optimal Range Bonus
+      ★ 实际加成值: 50.0
+
+  Effect 2: shipLaserCapNeed2AD1 (ID: 5293)
+    艾玛驱逐舰操作每升一级:
+      10% 小型能量炮台启动消耗减少
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 6
+      属性名称(name): capacitorNeed
+      显示名称(display_name): Activation Cost
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1887
+      属性名称: shipBonusAD1
+      显示名称:
+      ★ 实际加成值: -10.0
+
+  Effect 3: shipLaserTracking2AD2 (ID: 5294)
+    艾玛驱逐舰操作每升一级:
+      10% 小型能量炮台跟踪速度加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 160
+      属性名称(name): trackingSpeed
+      显示名称(display_name): Turret Tracking
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1888
+      属性名称: shipBonusAD2
+      显示名称:
+      ★ 实际加成值: 10.0
+
+================================================================================
+【2】龙骑兵级 (龙骑兵级)
+物品ID: 32874
+================================================================================
+
+jiacheng.txt输出:
+  艾玛驱逐舰操作每升一级:
+    10%无人机伤害和HP加成
+    20%掠能器和能量中和器最佳射程加成
+    10%掠能器和能量中和器失准范围加成
+  特有加成:
+    25%无人机最大速度加成
+
+
+--- ESI Effect 详细信息 ---
+
+  Effect 1: shipBonusDroneMWDboostrole (ID: 5165)
+    特有加成:
+      25% 无人机最大速度加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 37
+      属性名称(name): maxVelocity
+      显示名称(display_name): Maximum Velocity
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 793
+      属性名称: shipBonusRole7
+      显示名称:
+      ★ 实际加成值: 25.0
+
+  Effect 2: shipBonusDroneDamageMultiplierAD1 (ID: 5295)
+    艾玛驱逐舰操作每升一级:
+      10% 无人机伤害加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 64
+      属性名称(name): damageMultiplier
+      显示名称(display_name): Damage Modifier
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1887
+      属性名称: shipBonusAD1
+      显示名称:
+      ★ 实际加成值: 10.0
+
+  Effect 3: shipBonusDroneHitpointsAD1 (ID: 5300)
+    艾玛驱逐舰操作每升一级:
+      10% 无人机HP加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 265
+      属性名称(name): armorHP
+      显示名称(display_name): Armor Hitpoints
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1887
+      属性名称: shipBonusAD1
+      显示名称:
+      ★ 实际加成值: 10.0
+    Modifier 2:
+      --- 被修改的属性 ---
+      modified_attribute_id: 9
+      属性名称(name): hp
+      显示名称(display_name): Structure Hitpoints
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1887
+      属性名称: shipBonusAD1
+      显示名称:
+      ★ 实际加成值: 10.0
+    Modifier 3:
+      --- 被修改的属性 ---
+      modified_attribute_id: 263
+      属性名称(name): shieldCapacity
+      显示名称(display_name): Shield Capacity
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1887
+      属性名称: shipBonusAD1
+      显示名称:
+      ★ 实际加成值: 10.0
+
+  Effect 4: shipBonusEnergyNeutFalloffAD1 (ID: 6241)
+    艾玛驱逐舰操作每升一级:
+      10% 能量中和器失准范围加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 2044
+      属性名称(name): falloffEffectiveness
+      显示名称(display_name): Effectiveness Falloff
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1887
+      属性名称: shipBonusAD1
+      显示名称:
+      ★ 实际加成值: 10.0
+
+  Effect 5: shipBonusEnergyNeutOptimalAD2 (ID: 6242)
+    艾玛驱逐舰操作每升一级:
+      20% 能量中和器最佳射程加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 54
+      属性名称(name): maxRange
+      显示名称(display_name): Optimal Range
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1888
+      属性名称: shipBonusAD2
+      显示名称:
+      ★ 实际加成值: 20.0
+
+  Effect 6: shipBonusEnergyNosOptimalAD2 (ID: 6245)
+    艾玛驱逐舰操作每升一级:
+      20% 掠能器最佳射程加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 54
+      属性名称(name): maxRange
+      显示名称(display_name): Optimal Range
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1888
+      属性名称: shipBonusAD2
+      显示名称:
+      ★ 实际加成值: 20.0
+
+  Effect 7: shipBonusEnergyNosFalloffAD1 (ID: 6246)
+    艾玛驱逐舰操作每升一级:
+      10% 掠能器失准范围加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 2044
+      属性名称(name): falloffEffectiveness
+      显示名称(display_name): Effectiveness Falloff
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1887
+      属性名称: shipBonusAD1
+      显示名称:
+      ★ 实际加成值: 10.0
+
+================================================================================
+【3】强制者级海军型 (强制者级海军型)
+物品ID: 73789
+================================================================================
+
+jiacheng.txt输出:
+  艾玛驱逐舰操作每升一级:
+    7.50%舰船装甲值加成
+    7.50%小型能量炮台伤害加成
+    10%小型能量炮台启动消耗降低
+    10%能量中和器启动消耗降低
+    10%能量中和器强度加成
+  特有加成:
+    50%小型能量炮台最佳射程和失准范围加成
+
+
+--- ESI Effect 详细信息 ---
+
+  Effect 1: shipArmorHpAmaNavyDestroyer (ID: 11404)
+    艾玛驱逐舰操作每升一级:
+      7.50% 舰船装甲值加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 265
+      属性名称(name): armorHP
+      显示名称(display_name): Armor Hitpoints
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 5218
+      属性名称: shipBonusNavyDestroyerAmarr1
+      显示名称:
+      ★ 实际加成值: 7.5
+
+  Effect 2: shipBonusSmallEnergyTurretDamageAmaNavyDestroyer (ID: 11405)
+    艾玛驱逐舰操作每升一级:
+      7.50% 小型能量炮台伤害加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 64
+      属性名称(name): damageMultiplier
+      显示名称(display_name): Damage Modifier
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 5219
+      属性名称: shipBonusNavyDestroyerAmarr2
+      显示名称:
+      ★ 实际加成值: 7.5
+
+  Effect 3: shipLaserCap1AmaNavyIssue (ID: 11406)
+    艾玛驱逐舰操作每升一级:
+      10% 小型能量炮台启动消耗降低
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 6
+      属性名称(name): capacitorNeed
+      显示名称(display_name): Activation Cost
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 5220
+      属性名称: shipBonusNavyDestroyerAmarr3
+      显示名称:
+      ★ 实际加成值: -10.0
+
+  Effect 4: shipNeutCap1AmaNavyDestroyer (ID: 11407)
+    艾玛驱逐舰操作每升一级:
+      10% 能量中和器启动消耗降低
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 6
+      属性名称(name): capacitorNeed
+      显示名称(display_name): Activation Cost
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 5221
+      属性名称: shipBonusNavyDestroyerAmarr4
+      显示名称:
+      ★ 实际加成值: -10.0
+
+  Effect 5: shipEnergyNeutralizerTransferAmountBonusAmaNavyDestroyer (ID: 11408)
+    艾玛驱逐舰操作每升一级:
+      10% 能量中和器强度加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 97
+      属性名称(name): energyNeutralizerAmount
+      显示名称(display_name): Neutralization Amount
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 5222
+      属性名称: shipBonusNavyDestroyerAmarr5
+      显示名称:
+      ★ 实际加成值: 10.0
+
+  Effect 6: shipBonusSETFalloffAmaNavyDestroyer (ID: 11410)
+    特有加成:
+      50% 小型能量炮台失准范围加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 158
+      属性名称(name): falloff
+      显示名称(display_name): Accuracy falloff
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 5224
+      属性名称: shipBonusNavyDestroyerAmarr7
+      显示名称:
+      ★ 实际加成值: 50.0
+
+  Effect 7: shipBonusSETOptimalAmarNavyDestroyer6 (ID: 11450)
+    特有加成:
+      50% 小型能量炮台最佳射程加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 54
+      属性名称(name): maxRange
+      显示名称(display_name): Optimal Range
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 5223
+      属性名称: shipBonusNavyDestroyerAmarr6
+      显示名称:
+      ★ 实际加成值: 50.0
+
+================================================================================
+【4】奥格诺级 (奥格诺级)
+物品ID: 625
+================================================================================
+
+jiacheng.txt输出:
+  艾玛巡洋舰操作每升一级:
+    12.5%远程装甲维修器维修量加成
+    5%远程装甲维修器启动消耗减少
+  特有加成:
+    1000%远程电容传输装置距离加成
+    200%远程电容传输装置传输量加成
+    430%远程装甲维修器最佳射程和失准范围加成
+
+
+--- ESI Effect 详细信息 ---
+
+  Effect 1: energyTransferArrayMaxRangeBonus (ID: 2133)
+    特有加成:
+      1000% 远程电容传输装置距离加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 54
+      属性名称(name): maxRange
+      显示名称(display_name): Optimal Range
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 769
+      属性名称: maxRangeBonus2
+      显示名称: Optimal Range Bonus
+      ★ 实际加成值: 1000.0
+
+  Effect 2: armorRepairProjectorMaxRangeBonus (ID: 2135)
+    特有加成:
+      430% 远程装甲维修器最佳射程加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 54
+      属性名称(name): maxRange
+      显示名称(display_name): Optimal Range
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 351
+      属性名称: maxRangeBonus
+      显示名称: Optimal Range Bonus
+      ★ 实际加成值: 430.0
+    Modifier 2:
+      --- 被修改的属性 ---
+      modified_attribute_id: 54
+      属性名称(name): maxRange
+      显示名称(display_name): Optimal Range
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 351
+      属性名称: maxRangeBonus
+      显示名称: Optimal Range Bonus
+      ★ 实际加成值: 430.0
+
+  Effect 3: energyTransferArrayTransferAmountBonus (ID: 5121)
+    特有加成:
+      200% 远程电容传输装置传输量加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 90
+      属性名称(name): powerTransferAmount
+      显示名称(display_name): Energy transfer amount
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1840
+      属性名称: energyTransferAmountBonus
+      显示名称:
+      ★ 实际加成值: 200.0
+
+  Effect 4: shipBonusRemoteArmorRepairCapNeedAC1 (ID: 5123)
+    艾玛巡洋舰操作每升一级:
+      5% 远程装甲维修器启动消耗减少
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 6
+      属性名称(name): capacitorNeed
+      显示名称(display_name): Activation Cost
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 478
+      属性名称: shipBonusAC
+      显示名称:
+      ★ 实际加成值: -5.0
+
+  Effect 5: shipBonusRemoteArmorRepairAmountAC2 (ID: 5124)
+    艾玛巡洋舰操作每升一级:
+      12.5% 远程装甲维修器维修量加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 84
+      属性名称(name): armorDamageAmount
+      显示名称(display_name): Armor Hitpoints Repaired
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 656
+      属性名称: shipBonusAC2
+      显示名称:
+      ★ 实际加成值: 12.5
+
+  Effect 6: armorRepairProjectorFalloffBonus (ID: 6373)
+    特有加成:
+      430% 远程装甲维修器失准范围加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 2044
+      属性名称(name): falloffEffectiveness
+      显示名称(display_name): Effectiveness Falloff
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 349
+      属性名称: falloffBonus
+      显示名称: Falloff Bonus
+      ★ 实际加成值: 430.0
+    Modifier 2:
+      --- 被修改的属性 ---
+      modified_attribute_id: 2044
+      属性名称(name): falloffEffectiveness
+      显示名称(display_name): Effectiveness Falloff
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 349
+      属性名称: falloffBonus
+      显示名称: Falloff Bonus
+      ★ 实际加成值: 430.0
+
+================================================================================
+【5】启示级 (启示级)
+物品ID: 2006
+================================================================================
+
+jiacheng.txt输出:
+  艾玛巡洋舰操作每升一级:
+    10%中型能量炮台启动消耗减少
+    5%中型能量炮台射速加成
+
+
+--- ESI Effect 详细信息 ---
+
+  Effect 1: shipTCapNeedBonusAC (ID: 516)
+    艾玛巡洋舰操作每升一级:
+      10% 中型能量炮台启动消耗减少
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 6
+      属性名称(name): capacitorNeed
+      显示名称(display_name): Activation Cost
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 478
+      属性名称: shipBonusAC
+      显示名称:
+      ★ 实际加成值: -10.0
+
+  Effect 2: shipLaserRofAC2 (ID: 907)
+    艾玛巡洋舰操作每升一级:
+      5% 中型能量炮台射速加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 51
+      属性名称(name): speed
+      显示名称(display_name): Rate of fire
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 656
+      属性名称: shipBonusAC2
+      显示名称:
+      ★ 实际加成值: -5.0
+
+================================================================================
+【6】暴君级 (暴君级)
+物品ID: 624
+================================================================================
+
+jiacheng.txt输出:
+  艾玛巡洋舰操作每升一级:
+    5%中型能量炮台伤害加成
+    4%装甲抗性加成
+
+
+--- ESI Effect 详细信息 ---
+
+  Effect 1: shipArmorEmResistanceAC2 (ID: 958)
+    艾玛巡洋舰操作每升一级:
+      4% 装甲电磁抗性加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 267
+      属性名称(name): armorEmDamageResonance
+      显示名称(display_name): Armor EM Damage Resistance
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 656
+      属性名称: shipBonusAC2
+      显示名称:
+      ★ 实际加成值: -4.0
+
+  Effect 2: shipArmorExplosiveResistanceAC2 (ID: 959)
+    艾玛巡洋舰操作每升一级:
+      4% 装甲爆炸抗性加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 268
+      属性名称(name): armorExplosiveDamageResonance
+      显示名称(display_name): Armor Explosive Damage Resistance
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 656
+      属性名称: shipBonusAC2
+      显示名称:
+      ★ 实际加成值: -4.0
+
+  Effect 3: shipArmorKineticResistanceAC2 (ID: 960)
+    艾玛巡洋舰操作每升一级:
+      4% 装甲动能抗性加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 269
+      属性名称(name): armorKineticDamageResonance
+      显示名称(display_name): Armor Kinetic Damage Resistance
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 656
+      属性名称: shipBonusAC2
+      显示名称:
+      ★ 实际加成值: -4.0
+
+  Effect 4: shipArmorThermalResistanceAC2 (ID: 961)
+    艾玛巡洋舰操作每升一级:
+      4% 装甲热能抗性加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 270
+      属性名称(name): armorThermalDamageResonance
+      显示名称(display_name): Armor Thermal Damage Resistance
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 656
+      属性名称: shipBonusAC2
+      显示名称:
+      ★ 实际加成值: -4.0
+
+  Effect 5: shipMETCDamageBonusAC (ID: 5136)
+    艾玛巡洋舰操作每升一级:
+      5% 中型能量炮台伤害加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 64
+      属性名称(name): damageMultiplier
+      显示名称(display_name): Damage Modifier
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 478
+      属性名称: shipBonusAC
+      显示名称:
+      ★ 实际加成值: 5.0
+
+================================================================================
+【7】主宰级 (主宰级)
+物品ID: 628
+================================================================================
+
+jiacheng.txt输出:
+  艾玛巡洋舰操作每升一级:
+    7.50%武器扰断器效果加成
+    10%无人机伤害、HP和采矿量加成
+
+
+--- ESI Effect 详细信息 ---
+
+  Effect 1: shipBonusDroneHitpointsFixedAC2 (ID: 2181)
+    艾玛巡洋舰操作每升一级:
+      10% 无人机HP加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 265
+      属性名称(name): armorHP
+      显示名称(display_name): Armor Hitpoints
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 656
+      属性名称: shipBonusAC2
+      显示名称:
+      ★ 实际加成值: 10.0
+    Modifier 2:
+      --- 被修改的属性 ---
+      modified_attribute_id: 9
+      属性名称(name): hp
+      显示名称(display_name): Structure Hitpoints
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 656
+      属性名称: shipBonusAC2
+      显示名称:
+      ★ 实际加成值: 10.0
+    Modifier 3:
+      --- 被修改的属性 ---
+      modified_attribute_id: 263
+      属性名称(name): shieldCapacity
+      显示名称(display_name): Shield Capacity
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 656
+      属性名称: shipBonusAC2
+      显示名称:
+      ★ 实际加成值: 10.0
+
+  Effect 2: shipBonusDroneDamageMultiplierAC2 (ID: 2189)
+    艾玛巡洋舰操作每升一级:
+      10% 无人机伤害加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 64
+      属性名称(name): damageMultiplier
+      显示名称(display_name): Damage Modifier
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 656
+      属性名称: shipBonusAC2
+      显示名称:
+      ★ 实际加成值: 10.0
+
+  Effect 3: shipBonusDroneMiningAmountAC2 (ID: 2249)
+    艾玛巡洋舰操作每升一级:
+      10% 无人机采矿量加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 77
+      属性名称(name): miningAmount
+      显示名称(display_name): Mining amount
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 656
+      属性名称: shipBonusAC2
+      显示名称:
+      ★ 实际加成值: 10.0
+
+  Effect 4: shipBonusEwWeaponDisruptionStrengthAC1 (ID: 6395)
+    艾玛巡洋舰操作每升一级:
+      7.50% 武器扰断器效果加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 767
+      属性名称(name): trackingSpeedBonus
+      显示名称(display_name): Tracking Speed Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 478
+      属性名称: shipBonusAC
+      显示名称:
+      ★ 实际加成值: 7.5
+    Modifier 2:
+      --- 被修改的属性 ---
+      modified_attribute_id: 349
+      属性名称(name): falloffBonus
+      显示名称(display_name): Falloff Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 478
+      属性名称: shipBonusAC
+      显示名称:
+      ★ 实际加成值: 7.5
+    Modifier 3:
+      --- 被修改的属性 ---
+      modified_attribute_id: 351
+      属性名称(name): maxRangeBonus
+      显示名称(display_name): Optimal Range Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 478
+      属性名称: shipBonusAC
+      显示名称:
+      ★ 实际加成值: 7.5
+    Modifier 4:
+      --- 被修改的属性 ---
+      modified_attribute_id: 848
+      属性名称(name): aoeCloudSizeBonus
+      显示名称(display_name): Explosion Radius Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 478
+      属性名称: shipBonusAC
+      显示名称:
+      ★ 实际加成值: 7.5
+    Modifier 5:
+      --- 被修改的属性 ---
+      modified_attribute_id: 847
+      属性名称(name): aoeVelocityBonus
+      显示名称(display_name): Explosion Velocity Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 478
+      属性名称: shipBonusAC
+      显示名称:
+      ★ 实际加成值: 7.5
+    Modifier 6:
+      --- 被修改的属性 ---
+      modified_attribute_id: 596
+      属性名称(name): explosionDelayBonus
+      显示名称(display_name): Flight Time Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 478
+      属性名称: shipBonusAC
+      显示名称:
+      ★ 实际加成值: 7.5
+    Modifier 7:
+      --- 被修改的属性 ---
+      modified_attribute_id: 547
+      属性名称(name): missileVelocityBonus
+      显示名称(display_name): Missile Velocity Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 478
+      属性名称: shipBonusAC
+      显示名称:
+      ★ 实际加成值: 7.5
+
+================================================================================
+【8】奥格诺级海军型 (奥格诺级海军型)
+物品ID: 29337
+================================================================================
+
+jiacheng.txt输出:
+  艾玛巡洋舰操作每升一级:
+    25%中型能量炮台伤害加成
+    10%舰船装甲值加成
+
+
+--- ESI Effect 详细信息 ---
+
+  Effect 1: shipArmorHpAC2 (ID: 909)
+    艾玛巡洋舰操作每升一级:
+      10% 舰船装甲值加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 265
+      属性名称(name): armorHP
+      显示名称(display_name): Armor Hitpoints
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 656
+      属性名称: shipBonusAC2
+      显示名称:
+      ★ 实际加成值: 10.0
+
+  Effect 2: shipMETCDamageBonusAC (ID: 5136)
+    艾玛巡洋舰操作每升一级:
+      25% 中型能量炮台伤害加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 64
+      属性名称(name): damageMultiplier
+      显示名称(display_name): Damage Modifier
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 478
+      属性名称: shipBonusAC
+      显示名称:
+      ★ 实际加成值: 25.0
+
+================================================================================
+【9】启示级海军型 (启示级海军型)
+物品ID: 17709
+================================================================================
+
+jiacheng.txt输出:
+  艾玛巡洋舰操作每升一级:
+    10%中型能量炮台伤害加成
+    10%中型能量炮台最佳射程加成
+
+
+--- ESI Effect 详细信息 ---
+
+  Effect 1: shipMETCDamageBonusAC (ID: 5136)
+    艾玛巡洋舰操作每升一级:
+      10% 中型能量炮台伤害加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 64
+      属性名称(name): damageMultiplier
+      显示名称(display_name): Damage Modifier
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 478
+      属性名称: shipBonusAC
+      显示名称:
+      ★ 实际加成值: 10.0
+
+  Effect 2: shipBonusMETOptimalAC2 (ID: 5382)
+    艾玛巡洋舰操作每升一级:
+      10% 中型能量炮台最佳射程加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 54
+      属性名称(name): maxRange
+      显示名称(display_name): Optimal Range
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 656
+      属性名称: shipBonusAC2
+      显示名称:
+      ★ 实际加成值: 10.0
+
+================================================================================
+【10】先知级 (先知级)
+物品ID: 16233
+================================================================================
+
+jiacheng.txt输出:
+  艾玛战列巡洋舰操作每升一级:
+    20%无人机伤害和HP加成
+    4%装甲抗性加成
+  特有加成:
+    ·可以装配一个指挥脉冲波装备
+    50%指挥脉冲波效果范围加成
+    12.50%无人机最大速度加成
+
+
+--- ESI Effect 详细信息 ---
+
+  Effect 1: shipArmorEMResistance1ABC1 (ID: 5322)
+    艾玛战列巡洋舰操作每升一级:
+      4% 装甲电磁抗性加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 267
+      属性名称(name): armorEmDamageResonance
+      显示名称(display_name): Armor EM Damage Resistance
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 795
+      属性名称: shipBonusABC1
+      显示名称:
+      ★ 实际加成值: -4.0
+
+  Effect 2: shipArmorExplosiveResistance1ABC1 (ID: 5323)
+    艾玛战列巡洋舰操作每升一级:
+      4% 装甲爆炸抗性加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 268
+      属性名称(name): armorExplosiveDamageResonance
+      显示名称(display_name): Armor Explosive Damage Resistance
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 795
+      属性名称: shipBonusABC1
+      显示名称:
+      ★ 实际加成值: -4.0
+
+  Effect 3: shipArmorKineticResistance1ABC1 (ID: 5324)
+    艾玛战列巡洋舰操作每升一级:
+      4% 装甲动能抗性加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 269
+      属性名称(name): armorKineticDamageResonance
+      显示名称(display_name): Armor Kinetic Damage Resistance
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 795
+      属性名称: shipBonusABC1
+      显示名称:
+      ★ 实际加成值: -4.0
+
+  Effect 4: shipArmorThermResistance1ABC1 (ID: 5325)
+    艾玛战列巡洋舰操作每升一级:
+      4% 装甲热能抗性加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 270
+      属性名称(name): armorThermalDamageResonance
+      显示名称(display_name): Armor Thermal Damage Resistance
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 795
+      属性名称: shipBonusABC1
+      显示名称:
+      ★ 实际加成值: -4.0
+
+  Effect 5: shipBonusDroneDamageMultiplierABC2 (ID: 5326)
+    艾玛战列巡洋舰操作每升一级:
+      20% 无人机伤害加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 64
+      属性名称(name): damageMultiplier
+      显示名称(display_name): Damage Modifier
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1889
+      属性名称: shipBonusABC2
+      显示名称:
+      ★ 实际加成值: 10.0
+
+  Effect 6: shipBonusDroneHitpointsABC2 (ID: 5331)
+    艾玛战列巡洋舰操作每升一级:
+      20% 无人机HP加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 9
+      属性名称(name): hp
+      显示名称(display_name): Structure Hitpoints
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1889
+      属性名称: shipBonusABC2
+      显示名称:
+      ★ 实际加成值: 10.0
+    Modifier 2:
+      --- 被修改的属性 ---
+      modified_attribute_id: 265
+      属性名称(name): armorHP
+      显示名称(display_name): Armor Hitpoints
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1889
+      属性名称: shipBonusABC2
+      显示名称:
+      ★ 实际加成值: 10.0
+    Modifier 3:
+      --- 被修改的属性 ---
+      modified_attribute_id: 263
+      属性名称(name): shieldCapacity
+      显示名称(display_name): Shield Capacity
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1889
+      属性名称: shipBonusABC2
+      显示名称:
+      ★ 实际加成值: 10.0
+
+  Effect 7: battlecruiserDroneSpeed (ID: 6176)
+    特有加成:
+      12.50% 无人机最大速度加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 37
+      属性名称(name): maxVelocity
+      显示名称(display_name): Maximum Velocity
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 2043
+      属性名称: roleBonusCBC
+      显示名称:
+      ★ 实际加成值: 12.5
+
+  Effect 8: commandBurstAoERoleBonus (ID: 6783)
+    特有加成:
+      50% 指挥脉冲波效果范围加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 54
+      属性名称(name): maxRange
+      显示名称(display_name): Optimal Range
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 2574
+      属性名称: roleBonusCommandBurstAoERange
+      显示名称: Command Burst Effect Range Bonus
+      ★ 实际加成值: 50.0
+
+================================================================================
+【11】先驱者级 (先驱者级)
+物品ID: 24696
+================================================================================
+
+jiacheng.txt输出:
+  艾玛战列巡洋舰操作每升一级:
+    10%中型能量炮台启动消耗减少
+    10%中型能量炮台伤害加成
+  特有加成:
+    ·可以装配一个指挥脉冲波装备
+    50%指挥脉冲波效果范围加成
+    25%中型能量炮台最佳射程和失准范围加成
+
+
+--- ESI Effect 详细信息 ---
+
+  Effect 1: shipLaserCapABC1 (ID: 5332)
+    艾玛战列巡洋舰操作每升一级:
+      10% 中型能量炮台启动消耗减少
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 6
+      属性名称(name): capacitorNeed
+      显示名称(display_name): Activation Cost
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 795
+      属性名称: shipBonusABC1
+      显示名称:
+      ★ 实际加成值: -10.0
+
+  Effect 2: shipLaserDamageBonusABC2 (ID: 5333)
+    艾玛战列巡洋舰操作每升一级:
+      10% 中型能量炮台伤害加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 64
+      属性名称(name): damageMultiplier
+      显示名称(display_name): Damage Modifier
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1889
+      属性名称: shipBonusABC2
+      显示名称:
+      ★ 实际加成值: 10.0
+
+  Effect 3: battlecruiserMETRange (ID: 6172)
+    特有加成:
+      25% 中型能量炮台最佳射程和失准范围加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 54
+      属性名称(name): maxRange
+      显示名称(display_name): Optimal Range
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 2043
+      属性名称: roleBonusCBC
+      显示名称:
+      ★ 实际加成值: 25.0
+    Modifier 2:
+      --- 被修改的属性 ---
+      modified_attribute_id: 158
+      属性名称(name): falloff
+      显示名称(display_name): Accuracy falloff
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 2043
+      属性名称: roleBonusCBC
+      显示名称:
+      ★ 实际加成值: 25.0
+
+  Effect 4: commandBurstAoERoleBonus (ID: 6783)
+    特有加成:
+      50% 指挥脉冲波效果范围加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 54
+      属性名称(name): maxRange
+      显示名称(display_name): Optimal Range
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 2574
+      属性名称: roleBonusCommandBurstAoERange
+      显示名称: Command Burst Effect Range Bonus
+      ★ 实际加成值: 50.0
+
+================================================================================
+【12】预言级 (预言级)
+物品ID: 4302
+================================================================================
+
+jiacheng.txt输出:
+  艾玛战列巡洋舰操作每升一级:
+    10%大型能量炮台启动消耗减少
+    5%大型能量炮台伤害加成
+  特有加成:
+    95%大型能量炮台能量栅格需求降低
+    50%大型能量炮台CPU需求降低
+    50%大型能量炮台启动消耗减少
+
+
+--- ESI Effect 详细信息 ---
+
+  Effect 1: bcLargeEnergyTurretPowerNeedBonus (ID: 4820)
+    特有加成:
+      95% 大型能量炮台能量栅格需求降低
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 30
+      属性名称(name): power
+      显示名称(display_name): Powergrid Usage
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1786
+      属性名称: bcLargeTurretPower
+      显示名称:
+      ★ 实际加成值: 0.05
+
+  Effect 2: bcLargeEnergyTurretCPUNeedBonus (ID: 4823)
+    特有加成:
+      50% 大型能量炮台CPU需求降低
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 50
+      属性名称(name): cpu
+      显示名称(display_name): CPU usage
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1787
+      属性名称: bcLargeTurretCPU
+      显示名称:
+      ★ 实际加成值: 0.5
+
+  Effect 3: bcLargeEnergyTurretCapacitorNeedBonus (ID: 4826)
+    特有加成:
+      50% 大型能量炮台启动消耗减少
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 6
+      属性名称(name): capacitorNeed
+      显示名称(display_name): Activation Cost
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1788
+      属性名称: bcLargeTurretCap
+      显示名称:
+      ★ 实际加成值: 0.5
+
+  Effect 4: shipLargeLaserCapABC1 (ID: 5354)
+    艾玛战列巡洋舰操作每升一级:
+      10% 大型能量炮台启动消耗减少
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 6
+      属性名称(name): capacitorNeed
+      显示名称(display_name): Activation Cost
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 795
+      属性名称: shipBonusABC1
+      显示名称:
+      ★ 实际加成值: -10.0
+
+  Effect 5: shipLargeLaserDamageBonusABC2 (ID: 5355)
+    艾玛战列巡洋舰操作每升一级:
+      5% 大型能量炮台伤害加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 64
+      属性名称(name): damageMultiplier
+      显示名称(display_name): Damage Modifier
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1889
+      属性名称: shipBonusABC2
+      显示名称:
+      ★ 实际加成值: 5.0
+
+================================================================================
+【13】先驱者级海军型 (先驱者级海军型)
+物品ID: 33155
+================================================================================
+
+jiacheng.txt输出:
+  艾玛战列巡洋舰操作每升一级:
+    7.50%中型能量炮台跟踪速度加成
+    10%中型能量炮台伤害加成
+    10%中型能量炮台启动消耗降低
+  特有加成:
+    ·可以装配一个指挥脉冲波装备
+    50%指挥脉冲波效果范围加成
+    25%中型能量炮台最佳射程和失准范围加成
+
+
+--- ESI Effect 详细信息 ---
+
+  Effect 1: shipLaserDamageBonusABC2 (ID: 5333)
+    艾玛战列巡洋舰操作每升一级:
+      10% 中型能量炮台伤害加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 64
+      属性名称(name): damageMultiplier
+      显示名称(display_name): Damage Modifier
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1889
+      属性名称: shipBonusABC2
+      显示名称:
+      ★ 实际加成值: 10.0
+
+  Effect 2: shipEnergyTrackingABC1 (ID: 5381)
+    艾玛战列巡洋舰操作每升一级:
+      7.50% 中型能量炮台跟踪速度加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 160
+      属性名称(name): trackingSpeed
+      显示名称(display_name): Turret Tracking
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 795
+      属性名称: shipBonusABC1
+      显示名称:
+      ★ 实际加成值: 7.5
+
+  Effect 3: battlecruiserMETRange (ID: 6172)
+    特有加成:
+      25% 中型能量炮台最佳射程和失准范围加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 54
+      属性名称(name): maxRange
+      显示名称(display_name): Optimal Range
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 2043
+      属性名称: roleBonusCBC
+      显示名称:
+      ★ 实际加成值: 25.0
+    Modifier 2:
+      --- 被修改的属性 ---
+      modified_attribute_id: 158
+      属性名称(name): falloff
+      显示名称(display_name): Accuracy falloff
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 2043
+      属性名称: roleBonusCBC
+      显示名称:
+      ★ 实际加成值: 25.0
+
+  Effect 4: commandBurstAoERoleBonus (ID: 6783)
+    特有加成:
+      50% 指挥脉冲波效果范围加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 54
+      属性名称(name): maxRange
+      显示名称(display_name): Optimal Range
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 2574
+      属性名称: roleBonusCommandBurstAoERange
+      显示名称: Command Burst Effect Range Bonus
+      ★ 实际加成值: 50.0
+
+  Effect 5: shipLaserCapABC3 (ID: 12296)
+    艾玛战列巡洋舰操作每升一级:
+      10% 中型能量炮台启动消耗降低
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 6
+      属性名称(name): capacitorNeed
+      显示名称(display_name): Activation Cost
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 5205
+      属性名称: shipBonusABC3
+      显示名称:
+      ★ 实际加成值: -10.0
+
+================================================================================
+【14】先知级海军型 (先知级海军型)
+物品ID: 72872
+================================================================================
+
+jiacheng.txt输出:
+  艾玛战列巡洋舰操作每升一级:
+    7.50%中型能量炮台伤害加成
+    10%中型能量炮台最佳射程加成
+    5%无人机HP和伤害加成
+    10%舰船装甲值加成
+  特有加成:
+    ·可以装配一个指挥脉冲波
+    50%指挥脉冲波效果范围加成
+    12.50%无人机微型跃迁速度加成
+    25%中型能量炮台最佳射程和失准范围加成
+
+
+--- ESI Effect 详细信息 ---
+
+  Effect 1: shipBonusDroneDamageMultiplierABC2 (ID: 5326)
+    艾玛战列巡洋舰操作每升一级:
+      5% 无人机伤害加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 64
+      属性名称(name): damageMultiplier
+      显示名称(display_name): Damage Modifier
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1889
+      属性名称: shipBonusABC2
+      显示名称:
+      ★ 实际加成值: 5.0
+
+  Effect 2: shipBonusDroneHitpointsABC2 (ID: 5331)
+    艾玛战列巡洋舰操作每升一级:
+      5% 无人机HP加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 9
+      属性名称(name): hp
+      显示名称(display_name): Structure Hitpoints
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1889
+      属性名称: shipBonusABC2
+      显示名称:
+      ★ 实际加成值: 5.0
+    Modifier 2:
+      --- 被修改的属性 ---
+      modified_attribute_id: 265
+      属性名称(name): armorHP
+      显示名称(display_name): Armor Hitpoints
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1889
+      属性名称: shipBonusABC2
+      显示名称:
+      ★ 实际加成值: 5.0
+    Modifier 3:
+      --- 被修改的属性 ---
+      modified_attribute_id: 263
+      属性名称(name): shieldCapacity
+      显示名称(display_name): Shield Capacity
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 1889
+      属性名称: shipBonusABC2
+      显示名称:
+      ★ 实际加成值: 5.0
+
+  Effect 3: battlecruiserDroneSpeed (ID: 6176)
+    特有加成:
+      12.50% 无人机微型跃迁速度加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 37
+      属性名称(name): maxVelocity
+      显示名称(display_name): Maximum Velocity
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 2043
+      属性名称: roleBonusCBC
+      显示名称:
+      ★ 实际加成值: 12.5
+
+  Effect 4: commandBurstAoERoleBonus (ID: 6783)
+    特有加成:
+      50% 指挥脉冲波效果范围加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 54
+      属性名称(name): maxRange
+      显示名称(display_name): Optimal Range
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 2574
+      属性名称: roleBonusCommandBurstAoERange
+      显示名称: Command Burst Effect Range Bonus
+      ★ 实际加成值: 50.0
+
+  Effect 5: shipBonusMediumEnergyWeaponDamageABC3 (ID: 11063)
+    艾玛战列巡洋舰操作每升一级:
+      7.50% 中型能量炮台伤害加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 64
+      属性名称(name): damageMultiplier
+      显示名称(display_name): Damage Modifier
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 5205
+      属性名称: shipBonusABC3
+      显示名称:
+      ★ 实际加成值: 7.5
+
+  Effect 6: shipBonusMediumEnergyWeaponRangeABC1 (ID: 11064)
+    艾玛战列巡洋舰操作每升一级:
+      10% 中型能量炮台最佳射程加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 54
+      属性名称(name): maxRange
+      显示名称(display_name): Optimal Range
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 795
+      属性名称: shipBonusABC1
+      显示名称:
+      ★ 实际加成值: 10.0
+
+  Effect 7: shipBonusArmorHitpointsABC1 (ID: 11065)
+    艾玛战列巡洋舰操作每升一级:
+      10% 舰船装甲值加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 265
+      属性名称(name): armorHP
+      显示名称(display_name): Armor Hitpoints
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 795
+      属性名称: shipBonusABC1
+      显示名称:
+      ★ 实际加成值: 10.0
+
+  Effect 8: battlecruiserMETRange2 (ID: 11067)
+    特有加成:
+      25% 中型能量炮台最佳射程和失准范围加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 54
+      属性名称(name): maxRange
+      显示名称(display_name): Optimal Range
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 5045
+      属性名称: roleBonusCBC2
+      显示名称:
+      ★ 实际加成值: 25.0
+    Modifier 2:
+      --- 被修改的属性 ---
+      modified_attribute_id: 158
+      属性名称(name): falloff
+      显示名称(display_name): Accuracy falloff
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 5045
+      属性名称: roleBonusCBC2
+      显示名称:
+      ★ 实际加成值: 25.0
+
+================================================================================
+【15】地狱天使级 (地狱天使级)
+物品ID: 24692
+================================================================================
+
+jiacheng.txt输出:
+  艾玛战列舰操作每升一级:
+    7.50%大型能量炮台伤害加成
+    4%装甲抗性加成
+  特有加成:
+    100%护盾扩展装置护盾值加成
+    50%装甲附甲板装甲值加成
+    5%强化舱隔壁结构值加成
+
+
+--- ESI Effect 详细信息 ---
+
+  Effect 1: shipBonusArmorResistAB (ID: 2465)
+    艾玛战列舰操作每升一级:
+      4% 装甲抗性加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 267
+      属性名称(name): armorEmDamageResonance
+      显示名称(display_name): Armor EM Damage Resistance
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 492
+      属性名称: shipBonusAB
+      显示名称:
+      ★ 实际加成值: -4.0
+    Modifier 2:
+      --- 被修改的属性 ---
+      modified_attribute_id: 268
+      属性名称(name): armorExplosiveDamageResonance
+      显示名称(display_name): Armor Explosive Damage Resistance
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 492
+      属性名称: shipBonusAB
+      显示名称:
+      ★ 实际加成值: -4.0
+    Modifier 3:
+      --- 被修改的属性 ---
+      modified_attribute_id: 269
+      属性名称(name): armorKineticDamageResonance
+      显示名称(display_name): Armor Kinetic Damage Resistance
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 492
+      属性名称: shipBonusAB
+      显示名称:
+      ★ 实际加成值: -4.0
+    Modifier 4:
+      --- 被修改的属性 ---
+      modified_attribute_id: 270
+      属性名称(name): armorThermalDamageResonance
+      显示名称(display_name): Armor Thermal Damage Resistance
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 492
+      属性名称: shipBonusAB
+      显示名称:
+      ★ 实际加成值: -4.0
+
+  Effect 2: shipBonusLargeEnergyWeaponDamageAB2 (ID: 2805)
+    艾玛战列舰操作每升一级:
+      7.50% 大型能量炮台伤害加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 64
+      属性名称(name): damageMultiplier
+      显示名称(display_name): Damage Modifier
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 585
+      属性名称: shipBonusAB2
+      显示名称:
+      ★ 实际加成值: 7.5
+
+  Effect 3: BattleshipRoleBonusArmorPlate&ShieldExtenderHP (ID: 8377)
+    特有加成:
+      100% 护盾扩展装置护盾值加成
+      50% 装甲附甲板装甲值加成
+      5% 强化舱隔壁结构值加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 72
+      属性名称(name): capacityBonus
+      显示名称(display_name): Shield Hitpoint Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 3267
+      属性名称: battleshipExtenderHPBonus
+      显示名称:
+      ★ 实际加成值: 100.0
+    Modifier 2:
+      --- 被修改的属性 ---
+      modified_attribute_id: 1159
+      属性名称(name): armorHPBonusAdd
+      显示名称(display_name): Armor Hitpoint Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 3266
+      属性名称: battleshipPlateHPBonus
+      显示名称:
+      ★ 实际加成值: 50.0
+    Modifier 3:
+      --- 被修改的属性 ---
+      modified_attribute_id: 150
+      属性名称(name): structureHPMultiplier
+      显示名称(display_name): Structure Hitpoint Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 3268
+      属性名称: battleshipBulkheadHPModifierBonus
+      显示名称:
+      ★ 实际加成值: 0.05
+
+================================================================================
+【16】灾难级 (灾难级)
+物品ID: 642
+================================================================================
+
+jiacheng.txt输出:
+  艾玛战列舰操作每升一级:
+    10%大型能量炮台最佳射程加成
+    10%大型能量炮台启动消耗减少
+    5%大型能量炮台伤害加成
+  特有加成:
+    100%护盾扩展装置护盾值加成
+    50%装甲附甲板装甲值加成
+    5%强化舱隔壁结构值加成
+
+
+--- ESI Effect 详细信息 ---
+
+  Effect 1: shipBonusLargeEnergyTurretMaxRangeAB2 (ID: 3677)
+    艾玛战列舰操作每升一级:
+      10% 大型能量炮台最佳射程加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 54
+      属性名称(name): maxRange
+      显示名称(display_name): Optimal Range
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 585
+      属性名称: shipBonusAB2
+      显示名称:
+      ★ 实际加成值: 10.0
+
+  Effect 2: BattleshipRoleBonusArmorPlate&ShieldExtenderHP (ID: 8377)
+    特有加成:
+     100% 护盾扩展装置护盾值加成
+     50% 装甲附甲板装甲值加成
+     5% 强化舱隔壁结构值加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 72
+      属性名称(name): capacityBonus
+      显示名称(display_name): Shield Hitpoint Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 3267
+      属性名称: battleshipExtenderHPBonus
+      显示名称:
+      ★ 实际加成值: 100.0
+    Modifier 2:
+      --- 被修改的属性 ---
+      modified_attribute_id: 1159
+      属性名称(name): armorHPBonusAdd
+      显示名称(display_name): Armor Hitpoint Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 3266
+      属性名称: battleshipPlateHPBonus
+      显示名称:
+      ★ 实际加成值: 50.0
+    Modifier 3:
+      --- 被修改的属性 ---
+      modified_attribute_id: 150
+      属性名称(name): structureHPMultiplier
+      显示名称(display_name): Structure Hitpoint Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 3268
+      属性名称: battleshipBulkheadHPModifierBonus
+      显示名称:
+      ★ 实际加成值: 0.05
+
+  Effect 3: shipBonusLargeEnergyTurretDamageAB (ID: 11424)
+    艾玛战列舰操作每升一级:
+      5% 大型能量炮台伤害加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 64
+      属性名称(name): damageMultiplier
+      显示名称(display_name): Damage Modifier
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 492
+      属性名称: shipBonusAB
+      显示名称:
+      ★ 实际加成值: 5.0
+
+  Effect 4: shipBonusLargeEnergyTurretCapReductionAB3 (ID: 12573)
+    艾玛战列舰操作每升一级:
+      10% 大型能量炮台启动消耗减少
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 6
+      属性名称(name): capacitorNeed
+      显示名称(display_name): Activation Cost
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 5960
+      属性名称: shipBonusAB3
+      显示名称:
+      ★ 实际加成值: -10.0
+
+================================================================================
+【17】末日沙场级 (末日沙场级)
+物品ID: 643
+================================================================================
+
+jiacheng.txt输出:
+  艾玛战列舰操作每升一级:
+    10%无人机伤害和HP加成
+    10%掠能器和能量中和器最佳射程加成
+    5%掠能器和能量中和器失准范围加成
+  特有加成:
+    100%护盾扩展装置护盾值加成
+    50%装甲附甲板装甲值加成
+    5%强化舱隔壁结构值加成
+
+
+--- ESI Effect 详细信息 ---
+
+  Effect 1: shipBonusDroneDamageMultiplierAB (ID: 5417)
+    艾玛战列舰操作每升一级:
+      10% 无人机伤害加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 64
+      属性名称(name): damageMultiplier
+      显示名称(display_name): Damage Modifier
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 492
+      属性名称: shipBonusAB
+      显示名称:
+      ★ 实际加成值: 10.0
+
+  Effect 2: shipBonusDroneArmorHitPointsAB (ID: 5418)
+    艾玛战列舰操作每升一级:
+      10% 无人机装甲HP加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 265
+      属性名称(name): armorHP
+      显示名称(display_name): Armor Hitpoints
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 492
+      属性名称: shipBonusAB
+      显示名称:
+      ★ 实际加成值: 10.0
+
+  Effect 3: shipBonusDroneShieldHitPointsAB (ID: 5419)
+    艾玛战列舰操作每升一级:
+      10% 无人机装护盾HP加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 263
+      属性名称(name): shieldCapacity
+      显示名称(display_name): Shield Capacity
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 492
+      属性名称: shipBonusAB
+      显示名称:
+      ★ 实际加成值: 10.0
+
+  Effect 4: shipBonusDroneStructureHitPointsAB (ID: 5420)
+    艾玛战列舰操作每升一级:
+      10% 无人机结构HP加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 9
+      属性名称(name): hp
+      显示名称(display_name): Structure Hitpoints
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 492
+      属性名称: shipBonusAB
+      显示名称:
+      ★ 实际加成值: 10.0
+
+  Effect 5: shipBonusEnergyNeutOptimalAB (ID: 6253)
+    艾玛战列舰操作每升一级:
+      10% 能量中和器最佳射程加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 54
+      属性名称(name): maxRange
+      显示名称(display_name): Optimal Range
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 492
+      属性名称: shipBonusAB
+      显示名称:
+      ★ 实际加成值: 10.0
+
+  Effect 6: shipBonusEnergyNeutFalloffAB2 (ID: 6256)
+    艾玛战列舰操作每升一级:
+      5% 能量中和器失准范围加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 2044
+      属性名称(name): falloffEffectiveness
+      显示名称(display_name): Effectiveness Falloff
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 585
+      属性名称: shipBonusAB2
+      显示名称:
+      ★ 实际加成值: 5.0
+
+  Effect 7: shipBonusEnergyNosOptimalAB (ID: 6257)
+    艾玛战列舰操作每升一级:
+      10% 掠能器最佳射程加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 54
+      属性名称(name): maxRange
+      显示名称(display_name): Optimal Range
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 492
+      属性名称: shipBonusAB
+      显示名称:
+      ★ 实际加成值: 10.0
+
+  Effect 8: shipBonusEnergyNosFalloffAB2 (ID: 6260)
+    艾玛战列舰操作每升一级:
+      5% 掠能器失准范围加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 2044
+      属性名称(name): falloffEffectiveness
+      显示名称(display_name): Effectiveness Falloff
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 585
+      属性名称: shipBonusAB2
+      显示名称:
+      ★ 实际加成值: 5.0
+
+  Effect 9: BattleshipRoleBonusArmorPlate&ShieldExtenderHP (ID: 8377)
+    特有加成:
+     100% 护盾扩展装置护盾值加成
+      50% 装甲附甲板装甲值加成
+      5% 强化舱隔壁结构值加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 72
+      属性名称(name): capacityBonus
+      显示名称(display_name): Shield Hitpoint Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 3267
+      属性名称: battleshipExtenderHPBonus
+      显示名称:
+      ★ 实际加成值: 100.0
+    Modifier 2:
+      --- 被修改的属性 ---
+      modified_attribute_id: 1159
+      属性名称(name): armorHPBonusAdd
+      显示名称(display_name): Armor Hitpoint Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 3266
+      属性名称: battleshipPlateHPBonus
+      显示名称:
+      ★ 实际加成值: 50.0
+    Modifier 3:
+      --- 被修改的属性 ---
+      modified_attribute_id: 150
+      属性名称(name): structureHPMultiplier
+      显示名称(display_name): Structure Hitpoint Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 3268
+      属性名称: battleshipBulkheadHPModifierBonus
+      显示名称:
+      ★ 实际加成值: 0.05
+
+================================================================================
+【18】末日沙场级海军型 (末日沙场级海军型)
+物品ID: 32305
+================================================================================
+
+jiacheng.txt输出:
+  艾玛战列舰操作每升一级:
+    10%大型能量炮台、重型快速导弹、巡航导弹和鱼雷伤害加成
+    10%无人机HP和伤害加成
+    10%掠能器和能量中和器最佳射程加成
+  特有加成:
+    100%护盾扩展装置护盾值加成
+    50%装甲附甲板装甲值加成
+    5%强化舱隔壁结构值加成
+
+
+--- ESI Effect 详细信息 ---
+
+  Effect 1: shipBonusEnergyNeutOptimalAB (ID: 6253)
+    艾玛战列舰操作每升一级:
+      10% 能量中和器最佳射程加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 54
+      属性名称(name): maxRange
+      显示名称(display_name): Optimal Range
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 492
+      属性名称: shipBonusAB
+      显示名称:
+      ★ 实际加成值: 10.0
+
+  Effect 2: shipBonusEnergyNosOptimalAB (ID: 6257)
+    艾玛战列舰操作每升一级:
+      10% 掠能器最佳射程加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 54
+      属性名称(name): maxRange
+      显示名称(display_name): Optimal Range
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 492
+      属性名称: shipBonusAB
+      显示名称:
+      ★ 实际加成值: 10.0
+
+  Effect 3: BattleshipRoleBonusArmorPlate&ShieldExtenderHP (ID: 8377)
+    特有加成:
+     100% 护盾扩展装置护盾值加成
+      50% 装甲附甲板装甲值加成
+      5% 强化舱隔壁结构值加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 72
+      属性名称(name): capacityBonus
+      显示名称(display_name): Shield Hitpoint Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 3267
+      属性名称: battleshipExtenderHPBonus
+      显示名称:
+      ★ 实际加成值: 100.0
+    Modifier 2:
+      --- 被修改的属性 ---
+      modified_attribute_id: 1159
+      属性名称(name): armorHPBonusAdd
+      显示名称(display_name): Armor Hitpoint Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 3266
+      属性名称: battleshipPlateHPBonus
+      显示名称:
+      ★ 实际加成值: 50.0
+    Modifier 3:
+      --- 被修改的属性 ---
+      modified_attribute_id: 150
+      属性名称(name): structureHPMultiplier
+      显示名称(display_name): Structure Hitpoint Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 3268
+      属性名称: battleshipBulkheadHPModifierBonus
+      显示名称:
+      ★ 实际加成值: 0.05
+
+  Effect 4: shipBonusTorpedoDamageAB (ID: 11421)
+    艾玛战列舰操作每升一级:
+      10% 鱼雷伤害加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 114
+      属性名称(name): emDamage
+      显示名称(display_name): EM damage
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 492
+      属性名称: shipBonusAB
+      显示名称:
+      ★ 实际加成值: 10.0
+    Modifier 2:
+      --- 被修改的属性 ---
+      modified_attribute_id: 118
+      属性名称(name): thermalDamage
+      显示名称(display_name): Thermal damage
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 492
+      属性名称: shipBonusAB
+      显示名称:
+      ★ 实际加成值: 10.0
+    Modifier 3:
+      --- 被修改的属性 ---
+      modified_attribute_id: 117
+      属性名称(name): kineticDamage
+      显示名称(display_name): Kinetic damage
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 492
+      属性名称: shipBonusAB
+      显示名称:
+      ★ 实际加成值: 10.0
+    Modifier 4:
+      --- 被修改的属性 ---
+      modified_attribute_id: 116
+      属性名称(name): explosiveDamage
+      显示名称(display_name): Explosive damage
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 492
+      属性名称: shipBonusAB
+      显示名称:
+      ★ 实际加成值: 10.0
+
+  Effect 5: shipBonusCruiseMissileDamageAB (ID: 11422)
+    艾玛战列舰操作每升一级:
+      10% 巡航导弹伤害加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 114
+      属性名称(name): emDamage
+      显示名称(display_name): EM damage
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 492
+      属性名称: shipBonusAB
+      显示名称:
+      ★ 实际加成值: 10.0
+    Modifier 2:
+      --- 被修改的属性 ---
+      modified_attribute_id: 118
+      属性名称(name): thermalDamage
+      显示名称(display_name): Thermal damage
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 492
+      属性名称: shipBonusAB
+      显示名称:
+      ★ 实际加成值: 10.0
+    Modifier 3:
+      --- 被修改的属性 ---
+      modified_attribute_id: 117
+      属性名称(name): kineticDamage
+      显示名称(display_name): Kinetic damage
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 492
+      属性名称: shipBonusAB
+      显示名称:
+      ★ 实际加成值: 10.0
+    Modifier 4:
+      --- 被修改的属性 ---
+      modified_attribute_id: 116
+      属性名称(name): explosiveDamage
+      显示名称(display_name): Explosive damage
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 492
+      属性名称: shipBonusAB
+      显示名称:
+      ★ 实际加成值: 10.0
+
+  Effect 6: shipBonusHeavyMissileDamageAB (ID: 11423)
+    艾玛战列舰操作每升一级:
+      10% 重型快速导弹伤害加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 114
+      属性名称(name): emDamage
+      显示名称(display_name): EM damage
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 492
+      属性名称: shipBonusAB
+      显示名称:
+      ★ 实际加成值: 10.0
+    Modifier 2:
+      --- 被修改的属性 ---
+      modified_attribute_id: 118
+      属性名称(name): thermalDamage
+      显示名称(display_name): Thermal damage
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 492
+      属性名称: shipBonusAB
+      显示名称:
+      ★ 实际加成值: 10.0
+    Modifier 3:
+      --- 被修改的属性 ---
+      modified_attribute_id: 117
+      属性名称(name): kineticDamage
+      显示名称(display_name): Kinetic damage
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 492
+      属性名称: shipBonusAB
+      显示名称:
+      ★ 实际加成值: 10.0
+    Modifier 4:
+      --- 被修改的属性 ---
+      modified_attribute_id: 116
+      属性名称(name): explosiveDamage
+      显示名称(display_name): Explosive damage
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 492
+      属性名称: shipBonusAB
+      显示名称:
+      ★ 实际加成值: 10.0
+
+  Effect 7: shipBonusLargeEnergyTurretDamageAB (ID: 11424)
+    艾玛战列舰操作每升一级:
+      10% 大型能量炮台伤害加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 64
+      属性名称(name): damageMultiplier
+      显示名称(display_name): Damage Modifier
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 492
+      属性名称: shipBonusAB
+      显示名称:
+      ★ 实际加成值: 10.0
+
+  Effect 8: shipBonusDroneHitpointsAB (ID: 11425)
+    艾玛战列舰操作每升一级:
+      10% 无人机HP加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 265
+      属性名称(name): armorHP
+      显示名称(display_name): Armor Hitpoints
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 492
+      属性名称: shipBonusAB
+      显示名称:
+      ★ 实际加成值: 10.0
+    Modifier 2:
+      --- 被修改的属性 ---
+      modified_attribute_id: 9
+      属性名称(name): hp
+      显示名称(display_name): Structure Hitpoints
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 492
+      属性名称: shipBonusAB
+      显示名称:
+      ★ 实际加成值: 10.0
+    Modifier 3:
+      --- 被修改的属性 ---
+      modified_attribute_id: 263
+      属性名称(name): shieldCapacity
+      显示名称(display_name): Shield Capacity
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 492
+      属性名称: shipBonusAB
+      显示名称:
+      ★ 实际加成值: 10.0
+
+  Effect 9: shipBonusDroneDamageAB (ID: 11426)
+    艾玛战列舰操作每升一级:
+      10% 无人机伤害加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 64
+      属性名称(name): damageMultiplier
+      显示名称(display_name): Damage Modifier
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 492
+      属性名称: shipBonusAB
+      显示名称:
+      ★ 实际加成值: 10.0
+
+================================================================================
+【19】灾难级海军型 (灾难级海军型)
+物品ID: 17726
+================================================================================
+
+jiacheng.txt输出:
+  艾玛战列舰操作每升一级:
+    10%大型能量炮台最佳射程加成
+    10%大型能量炮台启动消耗减少
+    7.50%大型能量炮台伤害加成
+  特有加成:
+    100%护盾扩展装置护盾值加成
+    50%装甲附甲板装甲值加成
+    5%强化舱隔壁结构值加成
+
+
+--- ESI Effect 详细信息 ---
+
+  Effect 1: shipBonusLargeEnergyTurretMaxRangeAB2 (ID: 3677)
+    艾玛战列舰操作每升一级:
+      10% 大型能量炮台最佳射程加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 54
+      属性名称(name): maxRange
+      显示名称(display_name): Optimal Range
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 585
+      属性名称: shipBonusAB2
+      显示名称:
+      ★ 实际加成值: 10.0
+
+  Effect 2: BattleshipRoleBonusArmorPlate&ShieldExtenderHP (ID: 8377)
+    特有加成:
+     100% 护盾扩展装置护盾值加成
+      50% 装甲附甲板装甲值加成
+      5% 强化舱隔壁结构值加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 72
+      属性名称(name): capacityBonus
+      显示名称(display_name): Shield Hitpoint Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 3267
+      属性名称: battleshipExtenderHPBonus
+      显示名称:
+      ★ 实际加成值: 100.0
+    Modifier 2:
+      --- 被修改的属性 ---
+      modified_attribute_id: 1159
+      属性名称(name): armorHPBonusAdd
+      显示名称(display_name): Armor Hitpoint Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 3266
+      属性名称: battleshipPlateHPBonus
+      显示名称:
+      ★ 实际加成值: 50.0
+    Modifier 3:
+      --- 被修改的属性 ---
+      modified_attribute_id: 150
+      属性名称(name): structureHPMultiplier
+      显示名称(display_name): Structure Hitpoint Bonus
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 3268
+      属性名称: battleshipBulkheadHPModifierBonus
+      显示名称:
+      ★ 实际加成值: 0.05
+
+  Effect 3: shipBonusLargeEnergyTurretDamageAB (ID: 11424)
+    艾玛战列舰操作每升一级:
+      7.50% 大型能量炮台伤害加成
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 64
+      属性名称(name): damageMultiplier
+      显示名称(display_name): Damage Modifier
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 492
+      属性名称: shipBonusAB
+      显示名称:
+      ★ 实际加成值: 7.5
+
+  Effect 4: shipBonusLargeEnergyTurretCapReductionAB3 (ID: 12573)
+    艾玛战列舰操作每升一级:
+      10% 大型能量炮台启动消耗减少
+    Modifier 1:
+      --- 被修改的属性 ---
+      modified_attribute_id: 6
+      属性名称(name): capacitorNeed
+      显示名称(display_name): Activation Cost
+      --- 用来修改的属性（加成值） ---
+      modifying_attribute_id: 5960
+      属性名称: shipBonusAB3
+      显示名称:
+      ★ 实际加成值: -10.0
