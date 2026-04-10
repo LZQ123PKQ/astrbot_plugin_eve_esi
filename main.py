@@ -1346,3 +1346,87 @@ class EveESIPlugin(Star):
         except Exception as e:
             logger.error(f"LLM工具查询加成失败: {e}")
             return f"查询'{ship_name}'加成时出错：{str(e)}"
+
+    @filter.llm_tool(name="add_alias")
+    async def add_alias_tool(self, event: AstrMessageEvent, full_name: str, alias: str) -> str:
+        '''添加物品简称。适用于用户想要为某个物品设置快捷名称的场景。
+
+        Args:
+            full_name(string): 物品全称，如"鱼鹰级海军型"
+            alias(string): 简称，如"海鱼鹰"
+        '''
+        try:
+            if not full_name or not alias:
+                return "全称和简称不能为空"
+
+            if full_name not in self.aliases:
+                self.aliases[full_name] = []
+
+            if alias not in self.aliases[full_name]:
+                self.aliases[full_name].append(alias)
+                self._save_aliases()
+                return f"已添加简称: {alias} -> {full_name}"
+            else:
+                return f"简称 {alias} 已存在"
+        except Exception as e:
+            logger.error(f"LLM工具添加简称失败: {e}")
+            return f"添加简称时出错：{str(e)}"
+
+    @filter.llm_tool(name="list_aliases")
+    async def list_aliases_tool(self, event: AstrMessageEvent, query: str = "") -> str:
+        '''查看简称列表。适用于用户想要查看所有简称或查询某个物品的简称。
+
+        Args:
+            query(string): 查询内容，可以是全称或简称。为空时显示所有简称
+        '''
+        try:
+            if not self.aliases:
+                return "暂无简称"
+
+            if not query:
+                # 显示所有简称
+                result = "简称列表:\n"
+                for full_name, aliases in self.aliases.items():
+                    result += f"{full_name}: {', '.join(aliases)}\n"
+                return result
+            else:
+                # 查询指定内容
+                # 检查是否是简称
+                for full_name, aliases in self.aliases.items():
+                    if query in aliases:
+                        return f"{full_name}: {', '.join(aliases)}"
+
+                # 检查是否是全称
+                if query in self.aliases:
+                    return f"{query}: {', '.join(self.aliases[query])}"
+
+                return f"{query} 还没有简称"
+        except Exception as e:
+            logger.error(f"LLM工具查看简称失败: {e}")
+            return f"查看简称时出错：{str(e)}"
+
+    @filter.llm_tool(name="delete_alias")
+    async def delete_alias_tool(self, event: AstrMessageEvent, alias: str) -> str:
+        '''删除简称。适用于用户想要删除某个已添加的简称。
+
+        Args:
+            alias(string): 要删除的简称
+        '''
+        try:
+            found = False
+            for full_name, aliases in list(self.aliases.items()):
+                if alias in aliases:
+                    aliases.remove(alias)
+                    if not aliases:
+                        del self.aliases[full_name]
+                    found = True
+                    break
+
+            if found:
+                self._save_aliases()
+                return f"已删除简称: {alias}"
+            else:
+                return f"简称 {alias} 不存在"
+        except Exception as e:
+            logger.error(f"LLM工具删除简称失败: {e}")
+            return f"删除简称时出错：{str(e)}"
