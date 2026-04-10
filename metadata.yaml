@@ -1,6 +1,6 @@
 name: astrbot_plugin_eve_esi
 # 插件唯一识别名，以 astrbot_plugin_ 前缀开头
-display_name: EVE 查询
+display_name: EVE市场助手
 # 用于展示的名字，可以是方便人类阅读的名字
 desc: 一个用于调用EVE Online ESI API的插件，支持查询角色信息、市场数据等功能
 # 插件简短描述
