@@ -322,7 +322,6 @@ def get_effect_description(effect_name, bonus_value, effect_descriptions=None):
 # 不显示的 effect 列表
 HIDDEN_EFFECTS = [
     'entosisCPUPenalty',
-    'covertOpsWarpResistance',
 ]
 
 def should_hide_effect(effect_name):
