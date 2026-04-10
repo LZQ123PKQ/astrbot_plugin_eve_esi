@@ -818,6 +818,7 @@ class EveESIPlugin(Star):
             first_mod = modifiers[0]
             bonus_value = None
             modifying_attr_id = first_mod.get('modifying_attribute_id')
+            operator = first_mod.get('operator', 6)  # 默认使用 6 (PostPercent)
 
             # 获取 modifying_attribute 名称（用于技能类型识别）
             modifying_attr_name = ''
@@ -854,8 +855,8 @@ class EveESIPlugin(Star):
             # 构建 attr_names 字符串，用 / 分隔（与 zidian1.txt 格式一致）
             attr_names_str = '/'.join(attr_names)
 
-            # 获取描述
-            bonus_text = await self._process_bonus(bonus_value, bonus_attribute, effect_name, first_mod.get('modified_attribute_id'))
+            # 获取描述（传入 operator）
+            bonus_text = await self._process_bonus(bonus_value, bonus_attribute, effect_name, first_mod.get('modified_attribute_id'), operator)
             if not bonus_text:
                 continue
 
@@ -889,18 +890,52 @@ class EveESIPlugin(Star):
 
         return skill_bonuses_list, unique_bonuses_list
     
-    async def _process_bonus(self, bonus_value, bonus_attribute, effect_name, modified_attr_id):
-        """处理单个加成"""
+    async def _process_bonus(self, bonus_value, bonus_attribute, effect_name, modified_attr_id, operator=6):
+        """处理单个加成，根据 operator 格式化输出
+        
+        operator 规则：
+        0: PreAssignment - 0.0035→1-0.0035=99.65% 放在描述前边
+        2: PreDiv - 10.0→10+ 放在描述前边
+        4: Add - 0.5→50% 放在描述前边
+        6: PostPercent - 5.0→5% 放在描述前边
+        7: PostMul - 15000→15秒 放在描述后边，并且描述前边加一个·
+        0.0: 不写数值，并且描述前边加一个·
+        """
         # 首先尝试从 effect_dict 获取描述（基于 zidian1.txt）
-        # 不传 EFFECT_DESCRIPTIONS 参数，让函数每次都从文件重新加载
         desc_from_dict = get_effect_description(effect_name, bonus_value)
-        if desc_from_dict:
-            # 检查是否是未知加成
-            if '未知加成' not in desc_from_dict:
-                return desc_from_dict
+        if desc_from_dict and '未知加成' not in desc_from_dict:
+            # 根据 operator 调整描述格式
+            return self._format_by_operator(abs(bonus_value), desc_from_dict, operator, bonus_attribute)
         
         # 如果 effect_dict 中没有找到，使用通用格式
-        return f"{self._format_bonus_value(abs(bonus_value))}% {bonus_attribute}加成"
+        return self._format_by_operator(abs(bonus_value), f"{bonus_attribute}加成", operator, bonus_attribute)
+    
+    def _format_by_operator(self, value, description, operator, bonus_attribute):
+        """根据 operator 格式化输出"""
+        # 0.0 的情况：不写数值，描述前边加·
+        if value == 0.0:
+            return f"·{description}"
+        
+        if operator == 0:
+            # PreAssignment: 0.0035→1-0.0035=99.65% 放在描述前边
+            percent = (1 - value) * 100
+            return f"{self._format_bonus_value(percent)}% {description}"
+        elif operator == 2:
+            # PreDiv: 10.0→10+ 放在描述前边
+            return f"{self._format_bonus_value(value)}+ {description}"
+        elif operator == 4:
+            # Add: 0.5→50% 放在描述前边
+            percent = value * 100
+            return f"{self._format_bonus_value(percent)}% {description}"
+        elif operator == 7:
+            # PostMul: 15000→15秒 放在描述后边，描述前边加·
+            # 将大数值转换为秒（除以1000）
+            seconds = value / 1000
+            return f"·{description} {self._format_bonus_value(seconds)}秒"
+        else:
+            # 默认 PostPercent (6): 5.0→5% 放在描述前边
+            percent = value
+            return f"{self._format_bonus_value(percent)}% {description}"
     
     def _identify_skill_type(self, modifying_attr_name):
         """识别技能类型（使用 effect_dict）"""
