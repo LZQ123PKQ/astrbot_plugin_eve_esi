@@ -26,7 +26,7 @@ except ImportError:
         get_effect_description
     )
 
-@register("eve_esi", "LZQ123PKQ", "EVE ESI 调用插件", "2.1.0")
+@register("eve_esi", "LZQ123PKQ", "EVE市场助手", "2.1.0")
 class EveESIPlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
