@@ -981,8 +981,7 @@ class EveESIPlugin(Star):
         result = f"{display_name}\n\n"
         
         # 从 effect_dict 获取技能类型顺序
-        from effect_dict import SKILL_TYPE_RULES
-        skill_order = list(SKILL_TYPE_RULES.keys())
+        skill_order = list(_effect_dict.SKILL_TYPE_RULES.keys())
         
         # 按顺序输出技能加成
         result_parts = []
