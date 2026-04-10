@@ -6,25 +6,35 @@ import json
 import os
 import time
 import re
+import sys
 
-# 导入 effect 字典（使用相对导入）
-try:
-    from .effect_dict import (
-        load_effect_descriptions,
-        identify_skill_type,
-        is_role_bonus,
-        should_hide_effect,
-        get_effect_description
-    )
-except ImportError:
-    # 如果相对导入失败，尝试绝对导入（用于直接运行）
-    from effect_dict import (
-        load_effect_descriptions,
-        identify_skill_type,
-        is_role_bonus,
-        should_hide_effect,
-        get_effect_description
-    )
+# 导入 effect 字典（动态导入以兼容不同环境）
+def _import_effect_dict():
+    """动态导入 effect_dict 模块"""
+    try:
+        # 尝试相对导入（AstrBot 插件标准方式）
+        from . import effect_dict
+        return effect_dict
+    except ImportError:
+        try:
+            # 尝试绝对导入
+            import effect_dict
+            return effect_dict
+        except ImportError:
+            # 尝试通过路径导入
+            plugin_dir = os.path.dirname(os.path.abspath(__file__))
+            if plugin_dir not in sys.path:
+                sys.path.insert(0, plugin_dir)
+            import effect_dict
+            return effect_dict
+
+# 获取 effect_dict 模块
+_effect_dict = _import_effect_dict()
+load_effect_descriptions = _effect_dict.load_effect_descriptions
+identify_skill_type = _effect_dict.identify_skill_type
+is_role_bonus = _effect_dict.is_role_bonus
+should_hide_effect = _effect_dict.should_hide_effect
+get_effect_description = _effect_dict.get_effect_description
 
 @register("eve_esi", "LZQ123PKQ", "EVE市场助手", "2.1.0")
 class EveESIPlugin(Star):
