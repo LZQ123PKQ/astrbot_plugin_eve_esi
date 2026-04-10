@@ -492,15 +492,19 @@ class EveESIPlugin(Star):
             # 重新加载 effect_dict 模块
             try:
                 import importlib
-                import effect_dict
-                importlib.reload(effect_dict)
+                global _effect_dict, identify_skill_type, is_role_bonus, should_hide_effect, get_effect_description
+                _effect_dict = importlib.reload(_effect_dict)
+                identify_skill_type = _effect_dict.identify_skill_type
+                is_role_bonus = _effect_dict.is_role_bonus
+                should_hide_effect = _effect_dict.should_hide_effect
+                get_effect_description = _effect_dict.get_effect_description
                 logger.info("已重新加载 effect_dict 模块")
             except Exception as e:
                 logger.error(f"重新加载 effect_dict 失败: {e}")
-            
+
             # 计算行号
             lines_before = content[:content.find(pattern)].count('\n') + 1
-            
+
             yield event.plain_result(f"修改成功！\n第 {lines_before} 行:\n{old_skill_name}\n↓\n{new_skill_name}")
             
         except Exception as e:
@@ -652,12 +656,16 @@ class EveESIPlugin(Star):
             # 重新加载 effect_dict 模块
             try:
                 import importlib
-                import effect_dict
-                importlib.reload(effect_dict)
+                global _effect_dict, identify_skill_type, is_role_bonus, should_hide_effect, get_effect_description
+                _effect_dict = importlib.reload(_effect_dict)
+                identify_skill_type = _effect_dict.identify_skill_type
+                is_role_bonus = _effect_dict.is_role_bonus
+                should_hide_effect = _effect_dict.should_hide_effect
+                get_effect_description = _effect_dict.get_effect_description
                 logger.info("已重新加载 effect_dict 模块")
             except Exception as e:
                 logger.error(f"重新加载 effect_dict 失败: {e}")
-            
+
             yield event.plain_result(f"{action}成功！\n查询结果: {effect_name} -> modifying_attribute_id: {modifying_attr_id} -> name: {modifying_attr_name}\n已将 '{modifying_attr_name}' {action}到 '{skill_type}'")
             
         except Exception as e:
@@ -897,9 +905,8 @@ class EveESIPlugin(Star):
     def _identify_skill_type(self, modifying_attr_name):
         """识别技能类型（使用 effect_dict）"""
         # 使用 effect_dict 识别（基于 jianchuan.txt）
-        # 每次都从 effect_dict 模块调用，确保修改后立即生效
-        import effect_dict
-        return effect_dict.identify_skill_type(modifying_attr_name)
+        # 使用全局导入的 identify_skill_type 函数
+        return identify_skill_type(modifying_attr_name)
     
     def _merge_armor_resistance_bonuses(self, bonuses):
         """合并装甲抗性加成：当四种抗性加成同时存在且数值相等时，合并为一条
@@ -1523,8 +1530,12 @@ class EveESIPlugin(Star):
 
             try:
                 import importlib
-                import effect_dict
-                importlib.reload(effect_dict)
+                global _effect_dict, identify_skill_type, is_role_bonus, should_hide_effect, get_effect_description
+                _effect_dict = importlib.reload(_effect_dict)
+                identify_skill_type = _effect_dict.identify_skill_type
+                is_role_bonus = _effect_dict.is_role_bonus
+                should_hide_effect = _effect_dict.should_hide_effect
+                get_effect_description = _effect_dict.get_effect_description
             except Exception as e:
                 logger.error(f"重新加载 effect_dict 失败: {e}")
 
@@ -1646,8 +1657,12 @@ class EveESIPlugin(Star):
 
             try:
                 import importlib
-                import effect_dict
-                importlib.reload(effect_dict)
+                global _effect_dict, identify_skill_type, is_role_bonus, should_hide_effect, get_effect_description
+                _effect_dict = importlib.reload(_effect_dict)
+                identify_skill_type = _effect_dict.identify_skill_type
+                is_role_bonus = _effect_dict.is_role_bonus
+                should_hide_effect = _effect_dict.should_hide_effect
+                get_effect_description = _effect_dict.get_effect_description
             except Exception as e:
                 logger.error(f"重新加载 effect_dict 失败: {e}")
 
