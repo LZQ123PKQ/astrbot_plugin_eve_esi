@@ -1430,3 +1430,219 @@ class EveESIPlugin(Star):
         except Exception as e:
             logger.error(f"LLM工具删除简称失败: {e}")
             return f"删除简称时出错：{str(e)}"
+
+    @filter.llm_tool(name="modify_bonus_description")
+    async def modify_bonus_description_tool(self, event: AstrMessageEvent, old_description: str, effect_name: str, attr_names: str, new_description: str) -> str:
+        '''修改加成描述（zidian1.txt）。适用于用户想要修改某个加成效果的描述文字。
+
+        Args:
+            old_description(string): 原描述文字，如"能量炮台最佳射程加成"
+            effect_name(string): effect名称，如"shipETOptimalRange2AF"
+            attr_names(string): 属性名，多个用/分隔，如"maxRange"
+            new_description(string): 新描述文字，如"小型能量炮台最佳射程加成"
+        '''
+        try:
+            zidian1_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "zidian1.txt")
+            old_attrs = [a.strip() for a in attr_names.split('/')]
+
+            with open(zidian1_path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+
+            found = False
+            modified_line = None
+
+            for i, line in enumerate(lines):
+                line = line.strip()
+                if not line or ':' not in line:
+                    continue
+
+                desc_part, effect_attr_part = line.split(':', 1)
+                effect_attr_part = effect_attr_part.strip()
+
+                if '|' in effect_attr_part:
+                    file_effect, file_attrs = effect_attr_part.split('|', 1)
+                    file_effect = file_effect.strip()
+                    file_attr_list = [a.strip() for a in file_attrs.split('/')]
+
+                    if file_effect == effect_name:
+                        if all(attr in file_attr_list for attr in old_attrs):
+                            found = True
+                            percent_match = re.match(r'(xx%\s*)', desc_part)
+                            percent_prefix = percent_match.group(1) if percent_match else "xx% "
+                            new_line = f"{percent_prefix}{new_description}: {file_effect}|{file_attrs}\n"
+                            modified_line = i + 1
+                            lines[i] = new_line
+                            break
+
+            if not found:
+                return f"未找到匹配的映射: {old_description}({effect_name}|{attr_names})"
+
+            with open(zidian1_path, 'w', encoding='utf-8') as f:
+                f.writelines(lines)
+
+            return f"修改成功！\n第 {modified_line} 行:\n{old_description}({effect_name}|{attr_names})\n↓\n{new_description}"
+
+        except Exception as e:
+            logger.error(f"LLM工具修改加成描述失败: {e}")
+            return f"修改加成描述时出错：{str(e)}"
+
+    @filter.llm_tool(name="modify_skill_type_name")
+    async def modify_skill_type_name_tool(self, event: AstrMessageEvent, old_skill_name: str, new_skill_name: str) -> str:
+        '''修改技能类型名称（effect_dict.py）。适用于用户想要修改技能类型的名称。
+
+        Args:
+            old_skill_name(string): 原技能名，如"旗舰巡洋舰操作"
+            new_skill_name(string): 新技能名，如"航空母舰操作"
+        '''
+        try:
+            effect_dict_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "effect_dict.py")
+
+            with open(effect_dict_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+
+            pattern = f"'{old_skill_name}': ["
+            replacement = f"'{new_skill_name}': ["
+
+            if pattern not in content:
+                return f"未找到技能名称: {old_skill_name}"
+
+            new_content = content.replace(pattern, replacement)
+
+            with open(effect_dict_path, 'w', encoding='utf-8') as f:
+                f.write(new_content)
+
+            try:
+                import importlib
+                import effect_dict
+                importlib.reload(effect_dict)
+            except Exception as e:
+                logger.error(f"重新加载 effect_dict 失败: {e}")
+
+            lines_before = content[:content.find(pattern)].count('\n') + 1
+
+            return f"修改成功！\n第 {lines_before} 行:\n{old_skill_name}\n↓\n{new_skill_name}"
+
+        except Exception as e:
+            logger.error(f"LLM工具修改技能名称失败: {e}")
+            return f"修改技能名称时出错：{str(e)}"
+
+    @filter.llm_tool(name="add_effect_to_skill_type")
+    async def add_effect_to_skill_type_tool(self, event: AstrMessageEvent, effect_name: str, modified_attrs: str, skill_type: str) -> str:
+        '''添加effect到技能类型映射（effect_dict.py）。适用于用户想要将某个加成效果关联到特定技能类型。
+
+        Args:
+            effect_name(string): effect名称，如"shipBonusEwWeaponDisruptionStrengthAF2"
+            modified_attrs(string): 修改的属性名，多个用/分隔，如"trackingSpeedBonus/falloffBonus"
+            skill_type(string): 技能类型名，如"艾玛航空母舰操作"
+        '''
+        try:
+            plugin_dir = os.path.dirname(os.path.abspath(__file__))
+            effects_path = os.path.join(plugin_dir, "effects.json")
+            attributes_path = os.path.join(plugin_dir, "attributes.json")
+
+            with open(effects_path, 'r', encoding='utf-8') as f:
+                effects_data = json.load(f)
+
+            target_effect = None
+            for effect in effects_data:
+                if effect.get('name') == effect_name:
+                    target_effect = effect
+                    break
+
+            if not target_effect:
+                return f"未找到 effect: {effect_name}"
+
+            modifiers = target_effect.get('modifiers', [])
+            if not modifiers:
+                return f"effect {effect_name} 没有 modifiers"
+
+            modifying_attr_id = modifiers[0].get('modifying_attribute_id')
+            if not modifying_attr_id:
+                return "无法获取 modifying_attribute_id"
+
+            with open(attributes_path, 'r', encoding='utf-8') as f:
+                attributes_data = json.load(f)
+
+            modifying_attr_name = None
+            for attr in attributes_data:
+                if attr.get('attribute_id') == modifying_attr_id:
+                    modifying_attr_name = attr.get('name')
+                    break
+
+            if not modifying_attr_name:
+                return f"未找到 attribute_id: {modifying_attr_id}"
+
+            effect_dict_path = os.path.join(plugin_dir, "effect_dict.py")
+
+            with open(effect_dict_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+
+            if 'SKILL_TYPE_RULES = {' not in content:
+                return "未找到 SKILL_TYPE_RULES 字典"
+
+            skill_pattern = f"'{skill_type}': ["
+
+            if skill_pattern in content:
+                start_idx = content.find(skill_pattern)
+                list_start = start_idx + len(skill_pattern)
+
+                bracket_count = 1
+                list_end = list_start
+                while bracket_count > 0 and list_end < len(content):
+                    if content[list_end] == '[':
+                        bracket_count += 1
+                    elif content[list_end] == ']':
+                        bracket_count -= 1
+                    list_end += 1
+
+                if bracket_count != 0:
+                    return "解析 SKILL_TYPE_RULES 失败: 括号不匹配"
+
+                list_content = content[list_start:list_end-1]
+
+                if f"'{modifying_attr_name}'" in list_content:
+                    return f"'{modifying_attr_name}' 已存在于 '{skill_type}' 中"
+
+                last_quote_idx = list_content.rfind("'")
+                if last_quote_idx == -1:
+                    new_list_content = f"\n        '{modifying_attr_name}'\n    "
+                else:
+                    new_list_content = list_content.rstrip() + f",\n        '{modifying_attr_name}'\n    "
+
+                new_content = content[:list_start] + new_list_content + content[list_end-1:]
+
+                with open(effect_dict_path, 'w', encoding='utf-8') as f:
+                    f.write(new_content)
+
+                action = "添加"
+            else:
+                dict_start = content.find('SKILL_TYPE_RULES = {')
+                first_skill_pattern = "'突击护卫舰操作': ["
+                first_skill_idx = content.find(first_skill_pattern, dict_start)
+
+                if first_skill_idx == -1:
+                    insert_pos = content.find('{', dict_start) + 1
+                else:
+                    insert_pos = first_skill_idx
+
+                new_skill_entry = f"    '{skill_type}': [\n        '{modifying_attr_name}'\n    ],\n    "
+
+                new_content = content[:insert_pos] + new_skill_entry + content[insert_pos:]
+
+                with open(effect_dict_path, 'w', encoding='utf-8') as f:
+                    f.write(new_content)
+
+                action = "创建"
+
+            try:
+                import importlib
+                import effect_dict
+                importlib.reload(effect_dict)
+            except Exception as e:
+                logger.error(f"重新加载 effect_dict 失败: {e}")
+
+            return f"{action}成功！\n已将 '{modifying_attr_name}' {action}到 '{skill_type}'"
+
+        except Exception as e:
+            logger.error(f"LLM工具添加effect到技能类型失败: {e}")
+            return f"添加effect到技能类型时出错：{str(e)}"
