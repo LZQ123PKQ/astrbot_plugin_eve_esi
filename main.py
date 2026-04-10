@@ -904,38 +904,37 @@ class EveESIPlugin(Star):
         # 首先尝试从 effect_dict 获取描述（基于 zidian1.txt）
         desc_from_dict = get_effect_description(effect_name, bonus_value)
         if desc_from_dict and '未知加成' not in desc_from_dict:
-            # 根据 operator 调整描述格式
-            return self._format_by_operator(abs(bonus_value), desc_from_dict, operator, bonus_attribute)
+            # 如果描述已经包含数值格式，直接返回
+            return desc_from_dict
         
-        # 如果 effect_dict 中没有找到，使用通用格式
-        return self._format_by_operator(abs(bonus_value), f"{bonus_attribute}加成", operator, bonus_attribute)
+        # 如果 effect_dict 中没有找到，根据 operator 格式化
+        return self._format_by_operator(abs(bonus_value), bonus_attribute, operator)
     
-    def _format_by_operator(self, value, description, operator, bonus_attribute):
+    def _format_by_operator(self, value, bonus_attribute, operator):
         """根据 operator 格式化输出"""
         # 0.0 的情况：不写数值，描述前边加·
         if value == 0.0:
-            return f"·{description}"
+            return f"·{bonus_attribute}加成"
         
         if operator == 0:
             # PreAssignment: 0.0035→1-0.0035=99.65% 放在描述前边
             percent = (1 - value) * 100
-            return f"{self._format_bonus_value(percent)}% {description}"
+            return f"{percent:.2f}% {bonus_attribute}加成"
         elif operator == 2:
             # PreDiv: 10.0→10+ 放在描述前边
-            return f"{self._format_bonus_value(value)}+ {description}"
+            return f"{value:.2f}+ {bonus_attribute}加成"
         elif operator == 4:
             # Add: 0.5→50% 放在描述前边
             percent = value * 100
-            return f"{self._format_bonus_value(percent)}% {description}"
+            return f"{percent:.2f}% {bonus_attribute}加成"
         elif operator == 7:
             # PostMul: 15000→15秒 放在描述后边，描述前边加·
             # 将大数值转换为秒（除以1000）
             seconds = value / 1000
-            return f"·{description} {self._format_bonus_value(seconds)}秒"
+            return f"·{bonus_attribute}加成 {seconds:.2f}秒"
         else:
             # 默认 PostPercent (6): 5.0→5% 放在描述前边
-            percent = value
-            return f"{self._format_bonus_value(percent)}% {description}"
+            return f"{value:.2f}% {bonus_attribute}加成"
     
     def _identify_skill_type(self, modifying_attr_name):
         """识别技能类型（使用 effect_dict）"""
