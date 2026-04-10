@@ -814,73 +814,96 @@ class EveESIPlugin(Star):
             if not modifiers:
                 continue
 
-            # 获取第一个 modifier 的 modifying_attribute（用于技能类型识别和数值）
-            first_mod = modifiers[0]
-            bonus_value = None
-            modifying_attr_id = first_mod.get('modifying_attribute_id')
-            operator = first_mod.get('operator', 6)  # 默认使用 6 (PostPercent)
-
-            # 获取 modifying_attribute 名称（用于技能类型识别）
-            modifying_attr_name = ''
-            if modifying_attr_id and modifying_attr_id in attr_dict:
-                bonus_value = attr_dict[modifying_attr_id]
-                modifying_attr_info = await self.esi_request(f"/v1/dogma/attributes/{modifying_attr_id}/")
-                if modifying_attr_info:
-                    modifying_attr_name = modifying_attr_info.get('name', '')
-
-            if not bonus_value:
-                continue
-
-            # 获取所有 modified_attribute 名称（用于显示）
-            # 一个 effect 可能有多个 modifier，需要收集所有 modified_attribute
-            attr_names = []
-            bonus_attribute = ''
+            # 按 modifying_attribute_id 分组处理 modifier
+            # 如果一个 effect 有多个不同的 modifying_attribute_id，需要生成多条记录
+            mod_groups = {}  # {modifying_attr_id: {'value': x, 'operator': y, 'modified_attrs': []}}
             
             for mod in modifiers:
+                modifying_attr_id = mod.get('modifying_attribute_id')
+                if not modifying_attr_id or modifying_attr_id not in attr_dict:
+                    continue
+                
+                bonus_value = attr_dict[modifying_attr_id]
+                operator = mod.get('operator', 6)
                 modified_attr_id = mod.get('modified_attribute_id')
+                
+                # 按 modifying_attr_id 和 value 分组
+                group_key = (modifying_attr_id, bonus_value, operator)
+                if group_key not in mod_groups:
+                    mod_groups[group_key] = {
+                        'modifying_attr_id': modifying_attr_id,
+                        'value': bonus_value,
+                        'operator': operator,
+                        'modified_attr_ids': [],
+                        'modified_attr_names': []
+                    }
+                
                 if modified_attr_id:
+                    mod_groups[group_key]['modified_attr_ids'].append(modified_attr_id)
+                    # 获取 modified_attribute 名称
                     attr_info = await self.esi_request(f"/v1/dogma/attributes/{modified_attr_id}/")
                     if attr_info:
                         attr_name = attr_info.get('name', '')
-                        if attr_name and attr_name not in attr_names:
-                            attr_names.append(attr_name)
-                        # 使用第一个 modifier 的 modified_attribute 作为描述依据
-                        if not bonus_attribute:
-                            bonus_attribute = attr_info.get('display_name', attr_name)
-
-            # 如果没有获取到任何 attr_name，跳过
-            if not attr_names:
+                        display_name = attr_info.get('display_name', attr_name)
+                        if attr_name and attr_name not in mod_groups[group_key]['modified_attr_names']:
+                            mod_groups[group_key]['modified_attr_names'].append((attr_name, display_name))
+            
+            # 如果没有有效的 modifier 分组，跳过
+            if not mod_groups:
                 continue
-
-            # 构建 attr_names 字符串，用 / 分隔（与 zidian1.txt 格式一致）
-            attr_names_str = '/'.join(attr_names)
-
-            # 获取描述（传入 operator）
-            bonus_text = await self._process_bonus(bonus_value, bonus_attribute, effect_name, first_mod.get('modified_attribute_id'), operator, attr_names_str)
-            if not bonus_text:
-                continue
-
-            # 使用 modifying_attribute 名称识别技能类型
-            skill_type = self._identify_skill_type(modifying_attr_name)
-
-            bonus_dict = {
-                'text': bonus_text,
-                'effect_name': effect_name,
-                'attr_name': attr_names_str,  # 使用所有 attr_name 用 / 分隔
-                'modifying_attr_name': modifying_attr_name,
-                'value': bonus_value
-            }
-
-            if skill_type:
-                if skill_type not in skill_bonuses_dict:
-                    skill_bonuses_dict[skill_type] = {}
-                # 按 effect_name 去重，只保留第一个
-                if effect_name not in skill_bonuses_dict[skill_type]:
-                    skill_bonuses_dict[skill_type][effect_name] = bonus_dict
-            else:
-                # 按 effect_name 去重，只保留第一个
-                if effect_name not in unique_bonuses_dict:
-                    unique_bonuses_dict[effect_name] = bonus_dict
+            
+            # 为每个分组生成一条记录
+            for group_key, group_data in mod_groups.items():
+                modifying_attr_id = group_data['modifying_attr_id']
+                bonus_value = group_data['value']
+                operator = group_data['operator']
+                
+                # 获取 modifying_attribute 名称
+                modifying_attr_name = ''
+                modifying_attr_info = await self.esi_request(f"/v1/dogma/attributes/{modifying_attr_id}/")
+                if modifying_attr_info:
+                    modifying_attr_name = modifying_attr_info.get('name', '')
+                
+                # 构建 attr_names 字符串
+                attr_names_list = [name for name, _ in group_data['modified_attr_names']]
+                attr_names_str = '/'.join(attr_names_list)
+                
+                # 获取第一个 modified_attribute 的显示名称作为描述依据
+                bonus_attribute = ''
+                if group_data['modified_attr_names']:
+                    bonus_attribute = group_data['modified_attr_names'][0][1]
+                
+                # 获取描述（传入 operator）
+                bonus_text = await self._process_bonus(bonus_value, bonus_attribute, effect_name, 
+                                                       group_data['modified_attr_ids'][0] if group_data['modified_attr_ids'] else None, 
+                                                       operator, attr_names_str)
+                if not bonus_text:
+                    continue
+                
+                # 使用 modifying_attribute 名称识别技能类型
+                skill_type = self._identify_skill_type(modifying_attr_name)
+                
+                # 生成唯一的 effect_key（包含 modifying_attr_id 以区分同一 effect 的不同 modifier 组）
+                effect_key = f"{effect_name}_{modifying_attr_id}"
+                
+                bonus_dict = {
+                    'text': bonus_text,
+                    'effect_name': effect_name,
+                    'attr_name': attr_names_str,
+                    'modifying_attr_name': modifying_attr_name,
+                    'value': bonus_value
+                }
+                
+                if skill_type:
+                    if skill_type not in skill_bonuses_dict:
+                        skill_bonuses_dict[skill_type] = {}
+                    # 按 effect_key 去重
+                    if effect_key not in skill_bonuses_dict[skill_type]:
+                        skill_bonuses_dict[skill_type][effect_key] = bonus_dict
+                else:
+                    # 按 effect_key 去重
+                    if effect_key not in unique_bonuses_dict:
+                        unique_bonuses_dict[effect_key] = bonus_dict
 
         # 将字典转换为列表格式
         skill_bonuses_list = {}
