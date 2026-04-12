@@ -36,7 +36,7 @@ is_role_bonus = _effect_dict.is_role_bonus
 should_hide_effect = _effect_dict.should_hide_effect
 get_effect_description = _effect_dict.get_effect_description
 
-@register("eve_esi", "LZQ123PKQ", "EVE市场助手", "2.1.0")
+@register("eve_esi", "LZQ123PKQ", "EVE市场助手", "2.1.1")
 class EveESIPlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
