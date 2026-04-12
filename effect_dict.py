@@ -8,7 +8,14 @@ Effect 到描述的映射字典
 EFFECT_DESCRIPTIONS = {}
 
 def load_effect_descriptions():
-    """从 zidian1.txt 加载 effect 描述"""
+    """从 zidian1.txt 加载 effect 描述
+    
+    新格式: [描述:] effect_name|modified_attr|modifying_attr
+    - 描述可选，如果没有则自动生成
+    - effect_name: effect 名称
+    - modified_attr: 被修改的属性名
+    - modifying_attr: 用于修改的属性名（加成值来源）
+    """
     import os
     
     zidian_path = os.path.join(os.path.dirname(__file__), 'zidian1.txt')
@@ -30,21 +37,28 @@ def load_effect_descriptions():
                 continue
             
             # 解析描述行
-            # 格式: xx% 描述: effect_name|modified_attr_name
-            if ': ' in line and '|' in line:
-                parts = line.split(': ', 1)
+            # 格式: [描述:] effect_name|modified_attr|modifying_attr
+            if ':' in line and '|' in line:
+                parts = line.split(':', 1)
                 if len(parts) == 2:
-                    desc_template = parts[0].strip()  # xx% 描述
+                    desc_template = parts[0].strip()  # 描述（可能为空）
                     effect_part = parts[1].strip()
                     
-                    if '|' in effect_part:
-                        effect_parts = effect_part.rsplit('|', 1)
+                    # 解析 effect_name|modified_attr|modifying_attr
+                    effect_parts = effect_part.split('|')
+                    if len(effect_parts) >= 3:
                         effect_name = effect_parts[0].strip()
-                        modified_attrs = effect_parts[1].strip() if len(effect_parts) > 1 else ""
+                        modified_attr = effect_parts[1].strip()
+                        modifying_attr = effect_parts[2].strip()
                         
-                        descriptions[effect_name] = {
-                            'template': desc_template,
-                            'modified_attrs': modified_attrs,
+                        # 使用 effect_name|modified_attr 作为 key
+                        key = f"{effect_name}|{modified_attr}"
+                        
+                        descriptions[key] = {
+                            'template': desc_template,  # 可能为空，表示需要自动生成
+                            'effect_name': effect_name,
+                            'modified_attr': modified_attr,
+                            'modifying_attr': modifying_attr,
                             'category': current_category
                         }
     
@@ -281,12 +295,15 @@ def modifying_attr_is_skill_bonus(modifying_attr_name):
                 return True
     return False
 
-def get_effect_description(effect_name, bonus_value, operator=6, effect_descriptions=None):
+def get_effect_description(effect_name, modified_attr, bonus_value, operator=6, effect_descriptions=None):
     """
     获取 effect 的描述文本，根据 operator 格式化输出
     
+    新格式: 描述: effect_name|modified_attr|modifying_attr
+    
     Args:
         effect_name: effect 名称
+        modified_attr: 被修改的属性名
         bonus_value: 加成数值
         operator: operator 类型（0, 2, 4, 6, 7 等），默认 6 (PostPercent)
         effect_descriptions: effect 描述字典（可选，默认从文件加载）
@@ -305,40 +322,61 @@ def get_effect_description(effect_name, bonus_value, operator=6, effect_descript
     if effect_descriptions is None:
         effect_descriptions = load_effect_descriptions()
     
-    if effect_name not in effect_descriptions:
+    # 使用 effect_name|modified_attr 作为 key
+    key = f"{effect_name}|{modified_attr}"
+    
+    if key not in effect_descriptions:
         return None
     
-    desc_info = effect_descriptions[effect_name]
-    template = desc_info['template']
+    desc_info = effect_descriptions[key]
+    description = desc_info['template']  # 描述文本（如"拦截失效装置最大锁定范围加成"）
     
-    # 移除模板中的 xx% 或 xx＋，根据 operator 重新格式化
-    # 提取纯描述（去掉数值前缀）
-    pure_desc = template.replace('xx%', '').replace('xx＋', '').strip()
-    
-    # 0.0 的情况：不写数值，描述前边加·
-    if bonus_value == 0.0:
-        return f"·{pure_desc}"
-    
+    # 根据 operator 格式化数值
     value = abs(bonus_value)
     
     if operator == 0:
         # PreAssignment: 0.0035→1-0.0035=99.65% 放在描述前边
         percent = (1 - value) * 100
-        return f"{percent:.2f}% {pure_desc}"
+        return f"{percent:.2f}% {description}"
     elif operator == 2:
         # PreDiv: 10.0→10+ 放在描述前边
-        return f"{value:.2f}+ {pure_desc}"
+        return f"{value:.2f}+ {description}"
     elif operator == 4:
         # Add: 0.5→50% 放在描述前边
         percent = value * 100
-        return f"{percent:.2f}% {pure_desc}"
+        return f"{percent:.2f}% {description}"
     elif operator == 7:
         # PostMul: 15000→15秒 放在描述后边，描述前边加·
         seconds = value / 1000
-        return f"·{pure_desc} {seconds:.2f}秒"
+        return f"·{description} {seconds:.2f}秒"
     else:
         # 默认 PostPercent (6): 5.0→5% 放在描述前边
-        return f"{value:.2f}% {pure_desc}"
+        return f"{value:.2f}% {description}"
+
+
+def get_effect_description_count(effect_name, effect_descriptions=None):
+    """
+    获取 effect 的描述行数（用于支持同一 effect 多行描述）
+    
+    Args:
+        effect_name: effect 名称
+        effect_descriptions: effect 描述字典（可选，默认从文件加载）
+    
+    Returns:
+        描述行数（int）
+    """
+    if effect_descriptions is None:
+        effect_descriptions = load_effect_descriptions()
+    
+    if effect_name not in effect_descriptions:
+        return 0
+    
+    desc_info = effect_descriptions[effect_name]
+    template = desc_info['template']
+    
+    # 按 / 拆分多行描述
+    desc_templates = template.split('/')
+    return len(desc_templates)
 
 # 不显示的 effect 列表
 HIDDEN_EFFECTS = [

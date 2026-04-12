@@ -83,25 +83,65 @@ class EveESIPlugin(Star):
 
     @filter.command("简称")
     async def add_alias(self, event: AstrMessageEvent):
-        """添加简称"""
+        """添加简称
+        
+        支持两种格式:
+        /简称 全称=简称
+        /简称 简称=全称
+        
+        系统会自动识别哪个是全称哪个是简称
+        """
         message_str = event.message_str
         parts = message_str.split(" ")
         if len(parts) < 2:
-            yield event.plain_result("使用方法: /简称 <全称>=<简称>")
+            yield event.plain_result("使用方法: /简称 <全称>=<简称> 或 /简称 <简称>=<全称>")
             return
         
         alias_part = " ".join(parts[1:])
         if "=" not in alias_part:
-            yield event.plain_result("使用方法: /简称 <全称>=<简称>")
+            yield event.plain_result("使用方法: /简称 <全称>=<简称> 或 /简称 <简称>=<全称>")
             return
         
-        full_name, alias = alias_part.split("=", 1)
-        full_name = full_name.strip()
-        alias = alias.strip()
+        left_part, right_part = alias_part.split("=", 1)
+        left_part = left_part.strip()
+        right_part = right_part.strip()
         
-        if not full_name or not alias:
+        if not left_part or not right_part:
             yield event.plain_result("全称和简称不能为空")
             return
+        
+        # 智能识别哪个是全称哪个是简称
+        full_name = None
+        alias = None
+        
+        # 情况1: 左边在 aliases 的 key 中 -> 左边是全称
+        if left_part in self.aliases:
+            full_name = left_part
+            alias = right_part
+        # 情况2: 右边在 aliases 的 key 中 -> 右边是全称
+        elif right_part in self.aliases:
+            full_name = right_part
+            alias = left_part
+        # 情况3: 左边在任何一个简称列表中 -> 左边是简称，右边是全称
+        else:
+            left_is_alias = False
+            for fn, aliases in self.aliases.items():
+                if left_part in aliases:
+                    left_is_alias = True
+                    break
+            
+            if left_is_alias:
+                # 左边是简称，右边是全称
+                full_name = right_part
+                alias = left_part
+            else:
+                # 默认: 长的是全称，短的是简称
+                if len(left_part) >= len(right_part):
+                    full_name = left_part
+                    alias = right_part
+                else:
+                    full_name = right_part
+                    alias = left_part
         
         # 添加简称
         if full_name not in self.aliases:
@@ -189,10 +229,16 @@ class EveESIPlugin(Star):
             return
         
         query = " ".join(parts[1:])
-        # 检查是否有简称
-        if query in self.aliases:
-            logger.info(f"使用简称: {query} -> {self.aliases[query]}")
-            query = self.aliases[query]
+        # 检查是否有简称（遍历所有全名，查找匹配的简称）
+        full_name_from_alias = None
+        for full_name, aliases in self.aliases.items():
+            if query in aliases:
+                full_name_from_alias = full_name
+                break
+        
+        if full_name_from_alias:
+            logger.info(f"使用简称: {query} -> {full_name_from_alias}")
+            query = full_name_from_alias
         
         # 尝试将查询转换为数字（物品ID）
         if query.isdigit():
@@ -270,10 +316,16 @@ class EveESIPlugin(Star):
             return
         
         query = " ".join(parts[1:])
-        # 检查是否有简称
-        if query in self.aliases:
-            logger.info(f"使用简称: {query} -> {self.aliases[query]}")
-            query = self.aliases[query]
+        # 检查是否有简称（遍历所有全名，查找匹配的简称）
+        full_name_from_alias = None
+        for full_name, aliases in self.aliases.items():
+            if query in aliases:
+                full_name_from_alias = full_name
+                break
+        
+        if full_name_from_alias:
+            logger.info(f"使用简称: {query} -> {full_name_from_alias}")
+            query = full_name_from_alias
         
         # 尝试将查询转换为数字（物品ID）
         if query.isdigit():
@@ -348,15 +400,15 @@ class EveESIPlugin(Star):
         message_str = event.message_str
         parts = message_str.split(" ", 1)
         if len(parts) < 2:
-            yield event.plain_result("使用方法1: /加成修改 原描述(effect_name|attr1/attr2/...)=新描述\n使用方法2: /加成修改 原技能名=新技能名\n使用方法3: /加成修改 描述(effect_name|attr1/attr2/...)+技能类型名\n示例: /加成修改 能量炮台最佳射程加成(shipETOptimalRange2AF|maxRange)=小型能量炮台最佳射程加成\n示例: /加成修改 旗舰巡洋舰操作=航空母舰操作\n示例: /加成修改 武器扰断器效果加成(shipBonusEwWeaponDisruptionStrengthAF2|trackingSpeedBonus)+艾玛航空母舰操作")
+            yield event.plain_result("使用方法1: /加成修改 原描述(effect_name|modified_attr|modifying_attr)=新描述\n使用方法2: /加成修改 原技能名=新技能名\n使用方法3: /加成修改 描述(effect_name|modified_attr|modifying_attr)+技能类型名\n示例: /加成修改 拦截失效装置最大锁定范围加成(interceptorNullificationRoleBonus|maxTargetRangeBonus|shipBonusRole1)=拦截失效装置最大锁定距离加成\n示例: /加成修改 旗舰巡洋舰操作=航空母舰操作\n示例: /加成修改 拦截失效装置最大锁定范围加成(interceptorNullificationRoleBonus|maxTargetRangeBonus|shipBonusRole1)+艾玛护卫舰操作")
             return
         
         modify_part = parts[1]
         
         # 判断是哪种格式
-        # 格式1: 描述文字(effect_name|attr1/attr2/...)=新描述 - 修改 zidian1.txt
+        # 格式1: 描述(effect_name|modified_attr|modifying_attr)=新描述 - 修改 zidian1.txt
         # 格式2: 技能名=新技能名 - 修改 effect_dict.py 技能名称
-        # 格式3: 描述文字(effect_name|attr1/attr2/...)+技能类型名 - 添加 effect 到技能映射
+        # 格式3: 描述(effect_name|modified_attr|modifying_attr)+技能类型名 - 添加 effect 到技能映射
         
         if "+" in modify_part:
             # 格式3: 添加 effect 到技能类型映射
@@ -365,13 +417,14 @@ class EveESIPlugin(Star):
             skill_type = skill_type.strip()
             
             # 解析 effect 部分
-            # 格式: 描述(effect_name|modified_attr1/modified_attr2/...)
-            effect_match = re.match(r'(.+)\(([^|)]+)\|([^)]+)\)', effect_part)
+            # 格式: 描述(effect_name|modified_attr|modifying_attr)
+            effect_match = re.match(r'(.+)\(([^|)]+)\|([^|)]+)\|([^)]+)\)', effect_part)
             if not effect_match:
-                yield event.plain_result(f"格式错误: {effect_part}\n需要使用格式: 描述文字(effect_name|modified_attr1/modified_attr2/...)+技能类型名\n示例: /加成修改 武器扰断器效果加成(shipBonusEwWeaponDisruptionStrengthAF2|trackingSpeedBonus/falloffBonus/maxRangeBonus)+艾玛航空母舰操作")
+                yield event.plain_result(f"格式错误: {effect_part}\n需要使用格式: 描述(effect_name|modified_attr|modifying_attr)+技能类型名\n示例: /加成修改 拦截失效装置最大锁定范围加成(interceptorNullificationRoleBonus|maxTargetRangeBonus|shipBonusRole1)+艾玛护卫舰操作")
                 return
             
-            await self._add_effect_to_skill_type(effect_match, skill_type, event)
+            async for result in self._add_effect_to_skill_type(effect_match, skill_type, event):
+                yield result
         elif "=" in modify_part:
             # 格式1 或 格式2
             old_part, new_desc = modify_part.split("=", 1)
@@ -382,23 +435,28 @@ class EveESIPlugin(Star):
                 yield event.plain_result("新描述不能为空")
                 return
             
-            old_match = re.match(r'(.+)\(([^|]+)\|([^)]+)\)', old_part)
+            # 新格式: 描述(effect_name|modified_attr|modifying_attr)
+            old_match = re.match(r'(.+)\(([^|]+)\|([^|)]+)\|([^)]+)\)', old_part)
             
             if old_match:
                 # 格式1: 修改 zidian1.txt
-                await self._modify_zidian1(old_match, new_desc, event)
+                async for result in self._modify_zidian1(old_match, new_desc, event):
+                    yield result
             else:
                 # 格式2: 修改 effect_dict.py 技能名称
-                await self._modify_effect_dict(old_part, new_desc, event)
+                async for result in self._modify_effect_dict(old_part, new_desc, event):
+                    yield result
         else:
-            yield event.plain_result("格式错误，需要使用 = 或 + 分隔\n示例: /加成修改 能量炮台最佳射程加成(shipETOptimalRange2AF|maxRange)=小型能量炮台最佳射程加成\n示例: /加成修改 旗舰巡洋舰操作=航空母舰操作\n示例: /加成修改 武器扰断器效果加成(shipBonusEwWeaponDisruptionStrengthAF2|trackingSpeedBonus)+艾玛航空母舰操作")
+            yield event.plain_result("格式错误，需要使用 = 或 + 分隔\n示例: /加成修改 拦截失效装置最大锁定范围加成(interceptorNullificationRoleBonus|maxTargetRangeBonus|shipBonusRole1)=拦截失效装置最大锁定距离加成\n示例: /加成修改 旗舰巡洋舰操作=航空母舰操作\n示例: /加成修改 拦截失效装置最大锁定范围加成(interceptorNullificationRoleBonus|maxTargetRangeBonus|shipBonusRole1)+艾玛护卫舰操作")
     
     async def _modify_zidian1(self, old_match, new_desc, event):
-        """修改 zidian1.txt 中的 effect 描述"""
+        """修改 zidian1.txt 中的 effect 描述
+        
+        新格式: 描述: effect_name|modified_attr|modifying_attr
+        """
         old_desc = old_match.group(1).strip()
         old_effect = old_match.group(2).strip()
-        old_attrs_str = old_match.group(3).strip()
-        old_attrs = [a.strip() for a in old_attrs_str.split('/')]
+        old_modified_attr = old_match.group(3).strip()
         
         # 读取 zidian1.txt
         zidian1_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "zidian1.txt")
@@ -416,50 +474,43 @@ class EveESIPlugin(Star):
                 if not line:
                     continue
                 
-                # 解析行格式: xx% 描述文字: effect_name|attr_name
-                if ':' not in line:
+                # 解析行格式: 描述: effect_name|modified_attr|modifying_attr
+                if ':' not in line or '|' not in line:
                     continue
                 
-                desc_part, effect_attr_part = line.split(':', 1)
-                effect_attr_part = effect_attr_part.strip()
+                desc_part, effect_part = line.split(':', 1)
+                desc_part = desc_part.strip()
+                effect_part = effect_part.strip()
                 
-                # 检查 effect_name 和 attr_name 是否匹配
-                if '|' in effect_attr_part:
-                    file_effect, file_attrs = effect_attr_part.split('|', 1)
-                    file_effect = file_effect.strip()
-                    file_attrs = file_attrs.strip()
-                    file_attr_list = [a.strip() for a in file_attrs.split('/')]
+                # 解析 effect_name|modified_attr|modifying_attr
+                effect_parts = effect_part.split('|')
+                if len(effect_parts) >= 3:
+                    file_effect = effect_parts[0].strip()
+                    file_modified_attr = effect_parts[1].strip()
                     
-                    # 检查 effect_name 是否匹配，且所有输入的 attr 都在文件中的 attr 列表里
-                    if file_effect == old_effect:
-                        # 检查输入的 attrs 是否都包含在文件的 attrs 中
-                        if all(attr in file_attr_list for attr in old_attrs):
-                            # 找到了匹配的行
-                            found = True
-                            
-                            # 构建新的描述（保留 xx% 前缀）
-                            # 提取 xx% 前缀
-                            percent_match = re.match(r'(xx%\s*)', desc_part)
-                            percent_prefix = percent_match.group(1) if percent_match else "xx% "
-                            
-                            # 构建新行（保持原来的 effect_name|attr_name 不变）
-                            new_line = f"{percent_prefix}{new_desc}: {file_effect}|{file_attrs}\n"
-                            modified_line = i + 1  # 行号从1开始
-                            lines[i] = new_line
-                            break
+                    # 检查 effect_name 和 modified_attr 是否匹配
+                    if file_effect == old_effect and file_modified_attr == old_modified_attr:
+                        # 找到了匹配的行
+                        found = True
+                        
+                        # 构建新行（只修改描述部分）
+                        new_line = f"{new_desc}: {effect_part}\n"
+                        modified_line = i + 1  # 行号从1开始
+                        lines[i] = new_line
+                        break
             
             if not found:
-                yield event.plain_result(f"未找到匹配的映射: {old_desc}({old_effect}|{old_attrs_str})\n请检查 effect_name 和 attr_name 是否正确。")
+                yield event.plain_result(f"未找到匹配的映射: {old_desc}({old_effect}|{old_modified_attr})\n请检查 effect_name 和 modified_attr 是否正确。")
                 return
             
             # 写回文件
             with open(zidian1_path, 'w', encoding='utf-8') as f:
                 f.writelines(lines)
             
-            # 重新加载 effect_dict（实际上不需要特别处理，因为 get_effect_description 每次都会从文件重新加载）
+            # 重新加载 effect_dict
             logger.info("zidian1.txt 已修改，下次查询时会自动加载新配置")
             
-            yield event.plain_result(f"修改成功！\n第 {modified_line} 行:\n{old_desc}({old_effect}|{old_attrs_str})\n↓\n{new_desc}")
+            yield event.plain_result(f"修改成功！\n第 {modified_line} 行:\n{old_desc}({old_effect}|{old_modified_attr})\n↓\n{new_desc}")
             
         except Exception as e:
             logger.error(f"修改 zidian1.txt 失败: {e}")
@@ -814,10 +865,7 @@ class EveESIPlugin(Star):
             if not modifiers:
                 continue
 
-            # 按 modifying_attribute_id 分组处理 modifier
-            # 如果一个 effect 有多个不同的 modifying_attribute_id，需要生成多条记录
-            mod_groups = {}  # {modifying_attr_id: {'value': x, 'operator': y, 'modified_attrs': []}}
-            
+            # 每个 modifier 单独处理，不再分组
             for mod in modifiers:
                 modifying_attr_id = mod.get('modifying_attribute_id')
                 if not modifying_attr_id or modifying_attr_id not in attr_dict:
@@ -827,36 +875,8 @@ class EveESIPlugin(Star):
                 operator = mod.get('operator', 6)
                 modified_attr_id = mod.get('modified_attribute_id')
                 
-                # 按 modifying_attr_id 和 value 分组
-                group_key = (modifying_attr_id, bonus_value, operator)
-                if group_key not in mod_groups:
-                    mod_groups[group_key] = {
-                        'modifying_attr_id': modifying_attr_id,
-                        'value': bonus_value,
-                        'operator': operator,
-                        'modified_attr_ids': [],
-                        'modified_attr_names': []
-                    }
-                
-                if modified_attr_id:
-                    mod_groups[group_key]['modified_attr_ids'].append(modified_attr_id)
-                    # 获取 modified_attribute 名称
-                    attr_info = await self.esi_request(f"/v1/dogma/attributes/{modified_attr_id}/")
-                    if attr_info:
-                        attr_name = attr_info.get('name', '')
-                        display_name = attr_info.get('display_name', attr_name)
-                        if attr_name and attr_name not in mod_groups[group_key]['modified_attr_names']:
-                            mod_groups[group_key]['modified_attr_names'].append((attr_name, display_name))
-            
-            # 如果没有有效的 modifier 分组，跳过
-            if not mod_groups:
-                continue
-            
-            # 为每个分组生成一条记录
-            for group_key, group_data in mod_groups.items():
-                modifying_attr_id = group_data['modifying_attr_id']
-                bonus_value = group_data['value']
-                operator = group_data['operator']
+                if not modified_attr_id:
+                    continue
                 
                 # 获取 modifying_attribute 名称
                 modifying_attr_name = ''
@@ -864,32 +884,31 @@ class EveESIPlugin(Star):
                 if modifying_attr_info:
                     modifying_attr_name = modifying_attr_info.get('name', '')
                 
-                # 构建 attr_names 字符串
-                attr_names_list = [name for name, _ in group_data['modified_attr_names']]
-                attr_names_str = '/'.join(attr_names_list)
-                
-                # 获取第一个 modified_attribute 的显示名称作为描述依据
+                # 获取 modified_attribute 名称
+                modified_attr_name = ''
                 bonus_attribute = ''
-                if group_data['modified_attr_names']:
-                    bonus_attribute = group_data['modified_attr_names'][0][1]
+                attr_info = await self.esi_request(f"/v1/dogma/attributes/{modified_attr_id}/")
+                if attr_info:
+                    modified_attr_name = attr_info.get('name', '')
+                    bonus_attribute = attr_info.get('display_name', modified_attr_name)
                 
                 # 获取描述（传入 operator）
                 bonus_text = await self._process_bonus(bonus_value, bonus_attribute, effect_name, 
-                                                       group_data['modified_attr_ids'][0] if group_data['modified_attr_ids'] else None, 
-                                                       operator, attr_names_str)
+                                                       modified_attr_name, 
+                                                       operator, modified_attr_name)
                 if not bonus_text:
                     continue
                 
                 # 使用 modifying_attribute 名称识别技能类型
                 skill_type = self._identify_skill_type(modifying_attr_name)
                 
-                # 生成唯一的 effect_key（包含 modifying_attr_id 以区分同一 effect 的不同 modifier 组）
-                effect_key = f"{effect_name}_{modifying_attr_id}"
+                # 生成唯一的 effect_key（包含 modified_attr_id 以区分同一 effect 的不同 modifier）
+                effect_key = f"{effect_name}_{modified_attr_id}"
                 
                 bonus_dict = {
                     'text': bonus_text,
                     'effect_name': effect_name,
-                    'attr_name': attr_names_str,
+                    'attr_name': modified_attr_name,
                     'modifying_attr_name': modifying_attr_name,
                     'value': bonus_value
                 }
@@ -913,8 +932,10 @@ class EveESIPlugin(Star):
 
         return skill_bonuses_list, unique_bonuses_list
     
-    async def _process_bonus(self, bonus_value, bonus_attribute, effect_name, modified_attr_id, operator=6, attr_names_str=''):
+    async def _process_bonus(self, bonus_value, bonus_attribute, effect_name, modified_attr_name, operator=6, attr_names_str=''):
         """处理单个加成，根据 operator 格式化输出
+        
+        新格式: 描述: effect_name|modified_attr|modifying_attr
         
         operator 规则：
         0: PreAssignment - 0.0035→1-0.0035=99.65% 放在描述前边
@@ -924,9 +945,10 @@ class EveESIPlugin(Star):
         7: PostMul - 15000→15秒 放在描述后边，并且描述前边加一个·
         0.0: 不写数值，并且描述前边加一个·
         """
-        # 首先尝试从 effect_dict 获取描述（基于 zidian1.txt），传入 operator
-        desc_from_dict = get_effect_description(effect_name, bonus_value, operator)
-        if desc_from_dict and '未知加成' not in desc_from_dict:
+        # 首先尝试从 effect_dict 获取描述（基于 zidian1.txt）
+        # 使用 effect_name|modified_attr 作为 key
+        desc_from_dict = get_effect_description(effect_name, modified_attr_name, bonus_value, operator)
+        if desc_from_dict:
             return desc_from_dict
         
         # 如果 effect_dict 中没有找到，根据 operator 格式化
@@ -1030,8 +1052,99 @@ class EveESIPlugin(Star):
         
         return new_bonuses, merged_armor_bonus
     
+    def _merge_weapon_disruption_bonuses(self, bonuses):
+        """合并武器扰断器效果加成：当7种效果同时存在且数值相等时，合并为一条
+        
+        返回: (new_bonuses, merged_bonus)
+        merged_bonus 为 None 表示没有合并，否则包含合并后的信息
+        """
+        # 查找7种武器扰断器效果加成
+        tracking_bonus = None
+        falloff_bonus = None
+        max_range_bonus = None
+        aoe_cloud_bonus = None
+        aoe_velocity_bonus = None
+        explosion_delay_bonus = None
+        missile_velocity_bonus = None
+        
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if '武器扰断器跟踪速度效果加成' in bonus_text:
+                tracking_bonus = bonus_dict
+            elif '武器扰断器失准范围效果加成' in bonus_text:
+                falloff_bonus = bonus_dict
+            elif '武器扰断器最佳射程效果加成' in bonus_text:
+                max_range_bonus = bonus_dict
+            elif '武器扰断器爆炸半径效果加成' in bonus_text:
+                aoe_cloud_bonus = bonus_dict
+            elif '武器扰断器爆炸速度效果加成' in bonus_text:
+                aoe_velocity_bonus = bonus_dict
+            elif '武器扰断器飞行时间效果加成' in bonus_text:
+                explosion_delay_bonus = bonus_dict
+            elif '武器扰断器导弹速度效果加成' in bonus_text:
+                missile_velocity_bonus = bonus_dict
+        
+        # 检查是否7种都存在
+        if not (tracking_bonus and falloff_bonus and max_range_bonus and 
+                aoe_cloud_bonus and aoe_velocity_bonus and explosion_delay_bonus and missile_velocity_bonus):
+            return bonuses, None
+        
+        # 提取数值
+        import re
+        tracking_match = re.search(r'(\d+\.?\d*)%', tracking_bonus['text'])
+        falloff_match = re.search(r'(\d+\.?\d*)%', falloff_bonus['text'])
+        max_range_match = re.search(r'(\d+\.?\d*)%', max_range_bonus['text'])
+        aoe_cloud_match = re.search(r'(\d+\.?\d*)%', aoe_cloud_bonus['text'])
+        aoe_velocity_match = re.search(r'(\d+\.?\d*)%', aoe_velocity_bonus['text'])
+        explosion_delay_match = re.search(r'(\d+\.?\d*)%', explosion_delay_bonus['text'])
+        missile_velocity_match = re.search(r'(\d+\.?\d*)%', missile_velocity_bonus['text'])
+        
+        if not (tracking_match and falloff_match and max_range_match and 
+                aoe_cloud_match and aoe_velocity_match and explosion_delay_match and missile_velocity_match):
+            return bonuses, None
+        
+        tracking_value = tracking_match.group(1)
+        falloff_value = falloff_match.group(1)
+        max_range_value = max_range_match.group(1)
+        aoe_cloud_value = aoe_cloud_match.group(1)
+        aoe_velocity_value = aoe_velocity_match.group(1)
+        explosion_delay_value = explosion_delay_match.group(1)
+        missile_velocity_value = missile_velocity_match.group(1)
+        
+        # 检查数值是否相等
+        if not (tracking_value == falloff_value == max_range_value == 
+                aoe_cloud_value == aoe_velocity_value == explosion_delay_value == missile_velocity_value):
+            return bonuses, None
+        
+        # 构建合并后的武器扰断器效果加成信息
+        merged_bonus = {
+            'text': f"{tracking_value}% 武器扰断器效果加成",
+            'value': tracking_value,
+            'bonuses': [tracking_bonus, falloff_bonus, max_range_bonus, 
+                       aoe_cloud_bonus, aoe_velocity_bonus, explosion_delay_bonus, missile_velocity_bonus]
+        }
+        
+        # 构建新的 bonuses 列表，移除7条单独的效果加成
+        new_bonuses = []
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if ('武器扰断器跟踪速度效果加成' in bonus_text or 
+                '武器扰断器失准范围效果加成' in bonus_text or 
+                '武器扰断器最佳射程效果加成' in bonus_text or 
+                '武器扰断器爆炸半径效果加成' in bonus_text or 
+                '武器扰断器爆炸速度效果加成' in bonus_text or 
+                '武器扰断器飞行时间效果加成' in bonus_text or 
+                '武器扰断器导弹速度效果加成' in bonus_text):
+                continue
+            new_bonuses.append(bonus_dict)
+        
+        return new_bonuses, merged_bonus
+    
     def _build_result(self, item_info, skill_bonuses_dict, unique_bonuses_list, attr_dict, item_name_cn):
-        """构建结果文本（同步自 test_111_v2.py）"""
+        """构建结果文本（同步自 test_111_v2.py）
+        
+        新格式: effect_name|modified_attr|modifying_attr
+        """
         display_name = item_name_cn or item_info.get('name', '未知物品')
         
         result = f"{display_name}\n\n"
@@ -1046,28 +1159,48 @@ class EveESIPlugin(Star):
                 bonuses = skill_bonuses_dict[skill_type]
                 # 处理装甲抗性加成合并
                 bonuses, merged_armor_bonus = self._merge_armor_resistance_bonuses(bonuses)
+                # 处理武器扰断器效果加成合并
+                bonuses, merged_weapon_disruption_bonus = self._merge_weapon_disruption_bonuses(bonuses)
                 part = f"{skill_type}每升一级:\n"
                 for bonus_dict in bonuses:
                     bonus_text = bonus_dict['text']
                     effect_name = bonus_dict['effect_name']
-                    # attr_name 中可能包含多个属性，用 / 分隔
-                    # 输出格式: effect_name|attr1/attr2/...
-                    attr_name_str = bonus_dict['attr_name']
-                    part += f"{bonus_text}({effect_name}|{attr_name_str})\n"
+                    # 新格式: effect_name|modified_attr|modifying_attr
+                    modified_attr = bonus_dict['attr_name']
+                    modifying_attr = bonus_dict.get('modifying_attr_name', '')
+                    part += f"{bonus_text}({effect_name}|{modified_attr}|{modifying_attr})\n"
                 # 如果有合并的装甲抗性加成，特殊格式输出
                 if merged_armor_bonus:
                     bonus_text = merged_armor_bonus['text']
-                    # 第一行显示数值和描述，以及第一个 effect_name|attr_name
+                    # 第一行显示数值和描述，以及第一个 effect_name|modified_attr|modifying_attr
                     first_bonus = merged_armor_bonus['bonuses'][0]
-                    first_attr_str = first_bonus['attr_name']
-                    part += f"{bonus_text}({first_bonus['effect_name']}|{first_attr_str})\n"
-                    # 后续行只显示 effect_name|attr_name，前面加空格对齐
+                    first_modified_attr = first_bonus['attr_name']
+                    first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                    part += f"{bonus_text}({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    # 后续行只显示 effect_name|modified_attr|modifying_attr，前面加空格对齐
                     for i in range(1, len(merged_armor_bonus['bonuses'])):
                         bonus_info = merged_armor_bonus['bonuses'][i]
-                        attr_str = bonus_info['attr_name']
+                        modified_attr = bonus_info['attr_name']
+                        modifying_attr = bonus_info.get('modifying_attr_name', '')
                         # 计算缩进：数值部分的长度 + 1
                         indent = len(bonus_text) + 1
-                        part += f"{' ' * indent}({bonus_info['effect_name']}|{attr_str})\n"
+                        part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+                # 如果有合并的武器扰断器效果加成，特殊格式输出
+                if merged_weapon_disruption_bonus:
+                    bonus_text = merged_weapon_disruption_bonus['text']
+                    # 第一行显示数值和描述，以及第一个 effect_name|modified_attr|modifying_attr
+                    first_bonus = merged_weapon_disruption_bonus['bonuses'][0]
+                    first_modified_attr = first_bonus['attr_name']
+                    first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                    part += f"{bonus_text}({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    # 后续行只显示 effect_name|modified_attr|modifying_attr，前面加空格对齐
+                    for i in range(1, len(merged_weapon_disruption_bonus['bonuses'])):
+                        bonus_info = merged_weapon_disruption_bonus['bonuses'][i]
+                        modified_attr = bonus_info['attr_name']
+                        modifying_attr = bonus_info.get('modifying_attr_name', '')
+                        # 计算缩进：数值部分的长度 + 1
+                        indent = len(bonus_text) + 1
+                        part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
                 part += "\n"
                 result_parts.append(part)
         
@@ -1079,10 +1212,10 @@ class EveESIPlugin(Star):
             for bonus_dict in unique_bonuses_list:
                 bonus_text = bonus_dict['text']
                 effect_name = bonus_dict['effect_name']
-                # attr_name 中可能包含多个属性，用 / 分隔
-                # 输出格式: effect_name|attr1/attr2/...
-                attr_name_str = bonus_dict['attr_name']
-                result += f"{bonus_text}({effect_name}|{attr_name_str})\n"
+                # 新格式: effect_name|modified_attr|modifying_attr
+                modified_attr = bonus_dict['attr_name']
+                modifying_attr = bonus_dict.get('modifying_attr_name', '')
+                result += f"{bonus_text}({effect_name}|{modified_attr}|{modifying_attr})\n"
             result += "\n"
         
         return result
@@ -1325,38 +1458,44 @@ class EveESIPlugin(Star):
             item_name(string): 物品名称，如"三钛合金"、"乌鸦"、"PLEX"等
         '''
         try:
-            # 检查简称
-            query = item_name
-            if query in self.aliases:
-                query = self.aliases[query]
+                # 检查简称（遍历所有全名，查找匹配的简称）
+                query = item_name
+                full_name_from_alias = None
+                for full_name, aliases in self.aliases.items():
+                    if query in aliases:
+                        full_name_from_alias = full_name
+                        break
+                
+                if full_name_from_alias:
+                    query = full_name_from_alias
 
-            # 如果是数字ID，直接查询
-            if query.isdigit():
-                buy_text, sell_text = await self._get_item_price_info(query)
-                return f"【{item_name}】吉他市场价格：\n{buy_text}\n{sell_text}"
+                # 如果是数字ID，直接查询
+                if query.isdigit():
+                    buy_text, sell_text = await self._get_item_price_info(query)
+                    return f"【{item_name}】吉他市场价格：\n{buy_text}\n{sell_text}"
 
-            # 否则搜索物品名称
-            market_result = await self.search_item_by_name(query)
-            if not market_result:
-                return f"未找到物品'{item_name}'"
+                # 否则搜索物品名称
+                market_result = await self.search_item_by_name(query)
+                if not market_result:
+                    return f"未找到物品'{item_name}'"
 
-            # 过滤涂装和蓝图
-            filtered_result = [
-                item for item in market_result
-                if not self._is_skin(item.get('typename', ''))
-                and not self._is_blueprint(item.get('typename', ''))
-            ]
+                # 过滤涂装和蓝图
+                filtered_result = [
+                    item for item in market_result
+                    if not self._is_skin(item.get('typename', ''))
+                    and not self._is_blueprint(item.get('typename', ''))
+                ]
 
-            if not filtered_result:
-                return f"未找到'{item_name}'的有效结果（已过滤涂装和蓝图）"
+                if not filtered_result:
+                    return f"未找到'{item_name}'的有效结果（已过滤涂装和蓝图）"
 
-            # 查询第一个结果的价格
-            item = filtered_result[0]
-            item_id = str(item.get('typeid', ''))
-            item_name_found = item.get('typename', item_name)
-            buy_text, sell_text = await self._get_item_price_info(item_id)
+                # 查询第一个结果的价格
+                item = filtered_result[0]
+                item_id = str(item.get('typeid', ''))
+                item_name_found = item.get('typename', item_name)
+                buy_text, sell_text = await self._get_item_price_info(item_id)
 
-            return f"【{item_name_found}】吉他市场价格：\n{buy_text}\n{sell_text}"
+                return f"【{item_name_found}】吉他市场价格：\n{buy_text}\n{sell_text}"
 
         except Exception as e:
             logger.error(f"LLM工具查询价格失败: {e}")
@@ -1370,10 +1509,16 @@ class EveESIPlugin(Star):
             ship_name(string): 舰船名称，如"乌鸦级"、"狂热级"、"十字军"等
         '''
         try:
-            # 检查简称
+            # 检查简称（遍历所有全名，查找匹配的简称）
             query = ship_name
-            if query in self.aliases:
-                query = self.aliases[query]
+            full_name_from_alias = None
+            for full_name, aliases in self.aliases.items():
+                if query in aliases:
+                    full_name_from_alias = full_name
+                    break
+            
+            if full_name_from_alias:
+                query = full_name_from_alias
 
             # 搜索舰船
             market_result = await self.search_item_by_name(query)

@@ -1015,6 +1015,7 @@ jiacheng.txt输出:
   Effect 8: interceptorNullificationRoleBonus (ID: 8120)
     特有加成:
       80% 拦截失效装置重启延迟、最大锁定距离惩罚和扫描分辨率惩罚降低
+      100% 拦截失效装置持续时间加成
     Modifier 1:
       --- 被修改的属性 ---
       modified_attribute_id: 309

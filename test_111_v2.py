@@ -19,7 +19,9 @@ try:
         is_role_bonus,
         should_hide_effect,
         get_effect_description,
-        EFFECT_DESCRIPTIONS
+        get_effect_description_count,
+        EFFECT_DESCRIPTIONS,
+        SKILL_TYPE_RULES
     )
 except ImportError:
     print("错误: 无法导入 effect_dict.py，请确保文件在同一目录")
@@ -166,112 +168,146 @@ class EVEESITester:
         print("="*80)
     
     async def _process_bonuses(self, dogma_effects, attr_dict, item_name=''):
-        """处理技能加成和特有加成"""
-        # 使用字典按 effect_name 去重，每个 effect 只保留一条记录
-        skill_bonuses_dict = {}  # {skill_type: {effect_name: bonus_dict, ...}, ...}
-        unique_bonuses_dict = {}  # {effect_name: bonus_dict, ...}
+        """处理技能加成和特有加成（同步自 main.py）
         
+        每个 modifier 单独显示一行
+        """
+        # 使用字典按 effect_name 去重，每个 effect 只保留一条记录
+        skill_bonuses_dict = {}  # {skill_type: {effect_key: bonus_dict, ...}, ...}
+        unique_bonuses_dict = {}  # {effect_key: bonus_dict, ...}
+
         for effect in dogma_effects:
             effect_id = effect.get('effect_id')
             effect_info = await self.esi_request(f"/v1/dogma/effects/{effect_id}/")
             if not effect_info:
                 continue
-            
+
             effect_name = effect_info.get('name', '')
-            
+
             # 跳过应该隐藏的 effect
             if should_hide_effect(effect_name):
                 continue
-            
+
             modifiers = effect_info.get('modifiers', [])
-            
+
             # 跳过没有 modifier 的 effect
             if not modifiers:
                 continue
-            
-            # 获取第一个 modifier 的 modifying_attribute（用于技能类型识别和数值）
-            first_mod = modifiers[0]
-            bonus_value = None
-            modifying_attr_id = first_mod.get('modifying_attribute_id')
-            
-            # 获取 modifying_attribute 名称（用于技能类型识别）
-            modifying_attr_name = ''
-            if modifying_attr_id and modifying_attr_id in attr_dict:
+
+            # 每个 modifier 单独处理，不再分组
+            for mod in modifiers:
+                modifying_attr_id = mod.get('modifying_attribute_id')
+                if not modifying_attr_id or modifying_attr_id not in attr_dict:
+                    continue
+                
                 bonus_value = attr_dict[modifying_attr_id]
+                operator = mod.get('operator', 6)
+                modified_attr_id = mod.get('modified_attribute_id')
+                
+                if not modified_attr_id:
+                    continue
+                
+                # 获取 modifying_attribute 名称
+                modifying_attr_name = ''
                 modifying_attr_info = await self.esi_request(f"/v1/dogma/attributes/{modifying_attr_id}/")
                 if modifying_attr_info:
                     modifying_attr_name = modifying_attr_info.get('name', '')
-            
-            if not bonus_value:
-                continue
-            
-            # 获取所有 modified_attribute 名称（用于显示）
-            # 一个 effect 可能有多个 modifier，需要收集所有 modified_attribute
-            attr_names = []
-            bonus_attribute = ''
-            
-            for mod in modifiers:
-                modified_attr_id = mod.get('modified_attribute_id')
-                if modified_attr_id:
-                    attr_info = await self.esi_request(f"/v1/dogma/attributes/{modified_attr_id}/")
-                    if attr_info:
-                        attr_name = attr_info.get('name', '')
-                        if attr_name and attr_name not in attr_names:
-                            attr_names.append(attr_name)
-                        # 使用第一个 modifier 的 modified_attribute 作为描述依据
-                        if not bonus_attribute:
-                            bonus_attribute = attr_info.get('display_name', attr_name)
-            
-            # 如果没有获取到任何 attr_name，跳过
-            if not attr_names:
-                continue
-            
-            # 构建 attr_names 字符串，用 / 分隔（与 zidian1.txt 格式一致）
-            attr_names_str = '/'.join(attr_names)
-            
-            # 获取描述
-            bonus_text = await self._process_bonus(bonus_value, bonus_attribute, effect_name, first_mod.get('modified_attribute_id'))
-            if not bonus_text:
-                continue
-            
-            # 使用 modifying_attribute 名称识别技能类型
-            skill_type = self._identify_skill_type(modifying_attr_name)
-            
-            bonus_dict = {
-                'text': bonus_text,
-                'effect_name': effect_name,
-                'attr_name': attr_names_str,  # 使用所有 attr_name 用 / 分隔
-                'modifying_attr_name': modifying_attr_name,
-                'value': bonus_value
-            }
-            
-            if skill_type:
-                if skill_type not in skill_bonuses_dict:
-                    skill_bonuses_dict[skill_type] = {}
-                # 按 effect_name 去重，只保留第一个
-                if effect_name not in skill_bonuses_dict[skill_type]:
-                    skill_bonuses_dict[skill_type][effect_name] = bonus_dict
-            else:
-                # 按 effect_name 去重，只保留第一个
-                if effect_name not in unique_bonuses_dict:
-                    unique_bonuses_dict[effect_name] = bonus_dict
-        
+                
+                # 获取 modified_attribute 名称
+                modified_attr_name = ''
+                bonus_attribute = ''
+                attr_info = await self.esi_request(f"/v1/dogma/attributes/{modified_attr_id}/")
+                if attr_info:
+                    modified_attr_name = attr_info.get('name', '')
+                    bonus_attribute = attr_info.get('display_name', modified_attr_name)
+                
+                # 获取描述（传入 operator）
+                bonus_text = await self._process_bonus(bonus_value, bonus_attribute, effect_name, 
+                                                       modified_attr_name, 
+                                                       operator, modified_attr_name)
+                if not bonus_text:
+                    continue
+                
+                # 使用 modifying_attribute 名称识别技能类型
+                skill_type = self._identify_skill_type(modifying_attr_name)
+                
+                # 生成唯一的 effect_key（包含 modified_attr_id 以区分同一 effect 的不同 modifier）
+                effect_key = f"{effect_name}_{modified_attr_id}"
+                
+                bonus_dict = {
+                    'text': bonus_text,
+                    'effect_name': effect_name,
+                    'attr_name': modified_attr_name,
+                    'modifying_attr_name': modifying_attr_name,
+                    'value': bonus_value
+                }
+                
+                if skill_type:
+                    if skill_type not in skill_bonuses_dict:
+                        skill_bonuses_dict[skill_type] = {}
+                    # 按 effect_key 去重
+                    if effect_key not in skill_bonuses_dict[skill_type]:
+                        skill_bonuses_dict[skill_type][effect_key] = bonus_dict
+                else:
+                    # 按 effect_key 去重
+                    if effect_key not in unique_bonuses_dict:
+                        unique_bonuses_dict[effect_key] = bonus_dict
+
         # 将字典转换为列表格式
         skill_bonuses_list = {}
         for skill_type, bonuses in skill_bonuses_dict.items():
             skill_bonuses_list[skill_type] = list(bonuses.values())
         unique_bonuses_list = list(unique_bonuses_dict.values())
-        
+
         return skill_bonuses_list, unique_bonuses_list
     
-    async def _process_bonus(self, bonus_value, bonus_attribute, effect_name, modified_attr_id):
-        """处理单个加成"""
-        desc_from_dict = get_effect_description(effect_name, bonus_value, EFFECT_DESCRIPTIONS)
-        if desc_from_dict:
-            if '未知加成' not in desc_from_dict:
-                return desc_from_dict
+    async def _process_bonus(self, bonus_value, bonus_attribute, effect_name, modified_attr_name, operator=6, attr_names_str=''):
+        """处理单个加成，根据 operator 格式化输出
         
-        return f"{self._format_bonus_value(abs(bonus_value))}% {bonus_attribute}加成"
+        新格式: 描述: effect_name|modified_attr|modifying_attr
+        
+        operator 规则：
+        0: PreAssignment - 0.0035→1-0.0035=99.65% 放在描述前边
+        2: PreDiv - 10.0→10+ 放在描述前边
+        4: Add - 0.5→50% 放在描述前边
+        6: PostPercent - 5.0→5% 放在描述前边
+        7: PostMul - 15000→15秒 放在描述后边，并且描述前边加一个·
+        0.0: 不写数值，并且描述前边加一个·
+        """
+        # 首先尝试从 effect_dict 获取描述（基于 zidian1.txt）
+        # 使用 effect_name|modified_attr 作为 key
+        desc_from_dict = get_effect_description(effect_name, modified_attr_name, bonus_value, operator)
+        if desc_from_dict:
+            return desc_from_dict
+        
+        # 如果 effect_dict 中没有找到，根据 operator 格式化
+        return self._format_by_operator(abs(bonus_value), bonus_attribute, operator)
+    
+    def _format_by_operator(self, value, bonus_attribute, operator):
+        """根据 operator 格式化输出（备用，当 effect_dict 中没有描述时使用）"""
+        # 0.0 的情况：不写数值，描述前边加·
+        if value == 0.0:
+            return f"·{bonus_attribute}加成"
+        
+        if operator == 0:
+            # PreAssignment: 0.0035→1-0.0035=99.65% 放在描述前边
+            percent = (1 - value) * 100
+            return f"{percent:.2f}% {bonus_attribute}加成"
+        elif operator == 2:
+            # PreDiv: 10.0→10+ 放在描述前边
+            return f"{value:.2f}+ {bonus_attribute}加成"
+        elif operator == 4:
+            # Add: 0.5→50% 放在描述前边
+            percent = value * 100
+            return f"{percent:.2f}% {bonus_attribute}加成"
+        elif operator == 7:
+            # PostMul: 15000→15秒 放在描述后边，描述前边加·
+            # 将大数值转换为秒（除以1000）
+            seconds = value / 1000
+            return f"·{bonus_attribute}加成 {seconds:.2f}秒"
+        else:
+            # 默认 PostPercent (6): 5.0→5% 放在描述前边
+            return f"{value:.2f}% {bonus_attribute}加成"
     
     def _identify_skill_type(self, modifying_attr_name):
         """识别技能类型"""
@@ -342,8 +378,98 @@ class EVEESITester:
         
         return new_bonuses, merged_armor_bonus
     
+    def _merge_weapon_disruption_bonuses(self, bonuses):
+        """合并武器扰断器效果加成：当7种效果同时存在且数值相等时，合并为一条
+        
+        返回: (new_bonuses, merged_bonus)
+        merged_bonus 为 None 表示没有合并，否则包含合并后的信息
+        """
+        # 查找7种武器扰断器效果加成
+        tracking_bonus = None
+        falloff_bonus = None
+        max_range_bonus = None
+        aoe_cloud_bonus = None
+        aoe_velocity_bonus = None
+        explosion_delay_bonus = None
+        missile_velocity_bonus = None
+        
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if '武器扰断器跟踪速度效果加成' in bonus_text:
+                tracking_bonus = bonus_dict
+            elif '武器扰断器失准范围效果加成' in bonus_text:
+                falloff_bonus = bonus_dict
+            elif '武器扰断器最佳射程效果加成' in bonus_text:
+                max_range_bonus = bonus_dict
+            elif '武器扰断器爆炸半径效果加成' in bonus_text:
+                aoe_cloud_bonus = bonus_dict
+            elif '武器扰断器爆炸速度效果加成' in bonus_text:
+                aoe_velocity_bonus = bonus_dict
+            elif '武器扰断器飞行时间效果加成' in bonus_text:
+                explosion_delay_bonus = bonus_dict
+            elif '武器扰断器导弹速度效果加成' in bonus_text:
+                missile_velocity_bonus = bonus_dict
+        
+        # 检查是否7种都存在
+        if not (tracking_bonus and falloff_bonus and max_range_bonus and 
+                aoe_cloud_bonus and aoe_velocity_bonus and explosion_delay_bonus and missile_velocity_bonus):
+            return bonuses, None
+        
+        # 提取数值
+        tracking_match = re.search(r'(\d+\.?\d*)%', tracking_bonus['text'])
+        falloff_match = re.search(r'(\d+\.?\d*)%', falloff_bonus['text'])
+        max_range_match = re.search(r'(\d+\.?\d*)%', max_range_bonus['text'])
+        aoe_cloud_match = re.search(r'(\d+\.?\d*)%', aoe_cloud_bonus['text'])
+        aoe_velocity_match = re.search(r'(\d+\.?\d*)%', aoe_velocity_bonus['text'])
+        explosion_delay_match = re.search(r'(\d+\.?\d*)%', explosion_delay_bonus['text'])
+        missile_velocity_match = re.search(r'(\d+\.?\d*)%', missile_velocity_bonus['text'])
+        
+        if not (tracking_match and falloff_match and max_range_match and 
+                aoe_cloud_match and aoe_velocity_match and explosion_delay_match and missile_velocity_match):
+            return bonuses, None
+        
+        tracking_value = tracking_match.group(1)
+        falloff_value = falloff_match.group(1)
+        max_range_value = max_range_match.group(1)
+        aoe_cloud_value = aoe_cloud_match.group(1)
+        aoe_velocity_value = aoe_velocity_match.group(1)
+        explosion_delay_value = explosion_delay_match.group(1)
+        missile_velocity_value = missile_velocity_match.group(1)
+        
+        # 检查数值是否相等
+        if not (tracking_value == falloff_value == max_range_value == 
+                aoe_cloud_value == aoe_velocity_value == explosion_delay_value == missile_velocity_value):
+            return bonuses, None
+        
+        # 构建合并后的武器扰断器效果加成信息
+        merged_bonus = {
+            'text': f"{tracking_value}% 武器扰断器效果加成",
+            'value': tracking_value,
+            'bonuses': [tracking_bonus, falloff_bonus, max_range_bonus, 
+                       aoe_cloud_bonus, aoe_velocity_bonus, explosion_delay_bonus, missile_velocity_bonus]
+        }
+        
+        # 构建新的 bonuses 列表，移除7条单独的效果加成
+        new_bonuses = []
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if ('武器扰断器跟踪速度效果加成' in bonus_text or 
+                '武器扰断器失准范围效果加成' in bonus_text or 
+                '武器扰断器最佳射程效果加成' in bonus_text or 
+                '武器扰断器爆炸半径效果加成' in bonus_text or 
+                '武器扰断器爆炸速度效果加成' in bonus_text or 
+                '武器扰断器飞行时间效果加成' in bonus_text or 
+                '武器扰断器导弹速度效果加成' in bonus_text):
+                continue
+            new_bonuses.append(bonus_dict)
+        
+        return new_bonuses, merged_bonus
+    
     def _build_result(self, item_info, skill_bonuses_dict, unique_bonuses_list, attr_dict, item_name_cn):
-        """构建结果文本"""
+        """构建结果文本
+        
+        新格式: effect_name|modified_attr|modifying_attr
+        """
         display_name = item_name_cn or item_info.get('name', '未知物品')
         
         result = f"{display_name}\n\n"
@@ -358,28 +484,48 @@ class EVEESITester:
                 bonuses = skill_bonuses_dict[skill_type]
                 # 处理装甲抗性加成合并
                 bonuses, merged_armor_bonus = self._merge_armor_resistance_bonuses(bonuses)
+                # 处理武器扰断器效果加成合并
+                bonuses, merged_weapon_disruption_bonus = self._merge_weapon_disruption_bonuses(bonuses)
                 part = f"{skill_type}每升一级:\n"
                 for bonus_dict in bonuses:
                     bonus_text = bonus_dict['text']
                     effect_name = bonus_dict['effect_name']
-                    # attr_name 中可能包含多个属性，用 / 分隔
-                    # 输出格式: effect_name|attr1/attr2/...
-                    attr_name_str = bonus_dict['attr_name']
-                    part += f"{bonus_text}({effect_name}|{attr_name_str})\n"
+                    # 新格式: effect_name|modified_attr|modifying_attr
+                    modified_attr = bonus_dict['attr_name']
+                    modifying_attr = bonus_dict.get('modifying_attr_name', '')
+                    part += f"{bonus_text}({effect_name}|{modified_attr}|{modifying_attr})\n"
                 # 如果有合并的装甲抗性加成，特殊格式输出
                 if merged_armor_bonus:
                     bonus_text = merged_armor_bonus['text']
-                    # 第一行显示数值和描述，以及第一个 effect_name|attr_name
+                    # 第一行显示数值和描述，以及第一个 effect_name|modified_attr|modifying_attr
                     first_bonus = merged_armor_bonus['bonuses'][0]
-                    first_attr_str = first_bonus['attr_name']
-                    part += f"{bonus_text}({first_bonus['effect_name']}|{first_attr_str})\n"
-                    # 后续行只显示 effect_name|attr_name，前面加空格对齐
+                    first_modified_attr = first_bonus['attr_name']
+                    first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                    part += f"{bonus_text}({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    # 后续行只显示 effect_name|modified_attr|modifying_attr，前面加空格对齐
                     for i in range(1, len(merged_armor_bonus['bonuses'])):
                         bonus_info = merged_armor_bonus['bonuses'][i]
-                        attr_str = bonus_info['attr_name']
+                        modified_attr = bonus_info['attr_name']
+                        modifying_attr = bonus_info.get('modifying_attr_name', '')
                         # 计算缩进：数值部分的长度 + 1
                         indent = len(bonus_text) + 1
-                        part += f"{' ' * indent}({bonus_info['effect_name']}|{attr_str})\n"
+                        part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+                # 如果有合并的武器扰断器效果加成，特殊格式输出
+                if merged_weapon_disruption_bonus:
+                    bonus_text = merged_weapon_disruption_bonus['text']
+                    # 第一行显示数值和描述，以及第一个 effect_name|modified_attr|modifying_attr
+                    first_bonus = merged_weapon_disruption_bonus['bonuses'][0]
+                    first_modified_attr = first_bonus['attr_name']
+                    first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                    part += f"{bonus_text}({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    # 后续行只显示 effect_name|modified_attr|modifying_attr，前面加空格对齐
+                    for i in range(1, len(merged_weapon_disruption_bonus['bonuses'])):
+                        bonus_info = merged_weapon_disruption_bonus['bonuses'][i]
+                        modified_attr = bonus_info['attr_name']
+                        modifying_attr = bonus_info.get('modifying_attr_name', '')
+                        # 计算缩进：数值部分的长度 + 1
+                        indent = len(bonus_text) + 1
+                        part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
                 part += "\n"
                 result_parts.append(part)
         
@@ -391,10 +537,10 @@ class EVEESITester:
             for bonus_dict in unique_bonuses_list:
                 bonus_text = bonus_dict['text']
                 effect_name = bonus_dict['effect_name']
-                # attr_name 中可能包含多个属性，用 / 分隔
-                # 输出格式: effect_name|attr1/attr2/...
-                attr_name_str = bonus_dict['attr_name']
-                result += f"{bonus_text}({effect_name}|{attr_name_str})\n"
+                # 新格式: effect_name|modified_attr|modifying_attr
+                modified_attr = bonus_dict['attr_name']
+                modifying_attr = bonus_dict.get('modifying_attr_name', '')
+                result += f"{bonus_text}({effect_name}|{modified_attr}|{modifying_attr})\n"
             result += "\n"
         
         return result
