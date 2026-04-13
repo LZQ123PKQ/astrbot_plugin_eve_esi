@@ -465,6 +465,112 @@ class EVEESITester:
         
         return new_bonuses, merged_bonus
     
+    def _merge_weapon_range_falloff_bonuses(self, bonuses):
+        """合并武器扰断器最佳射程和失准范围：当两者同时存在且数值相等时，合并为一条
+        
+        返回: (new_bonuses, merged_bonus)
+        merged_bonus 为 None 表示没有合并，否则包含合并后的信息
+        """
+        # 查找武器扰断器最佳射程和失准范围加成
+        max_range_bonus = None
+        falloff_bonus = None
+        
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if '武器扰断器最佳射程' in bonus_text and '失准范围' not in bonus_text:
+                max_range_bonus = bonus_dict
+            elif '武器扰断器失准范围' in bonus_text:
+                falloff_bonus = bonus_dict
+        
+        # 检查是否两者都存在
+        if not (max_range_bonus and falloff_bonus):
+            return bonuses, None
+        
+        # 提取数值
+        max_range_match = re.search(r'(\d+\.?\d*)%', max_range_bonus['text'])
+        falloff_match = re.search(r'(\d+\.?\d*)%', falloff_bonus['text'])
+        
+        if not (max_range_match and falloff_match):
+            return bonuses, None
+        
+        max_range_value = max_range_match.group(1)
+        falloff_value = falloff_match.group(1)
+        
+        # 检查数值是否相等
+        if max_range_value != falloff_value:
+            return bonuses, None
+        
+        # 构建合并后的武器扰断器最佳射程和失准范围惩罚信息（数值取负号）
+        merged_bonus = {
+            'text': f"-{max_range_value}%武器扰断器最佳射程和失准范围惩罚",
+            'value': f"-{max_range_value}",
+            'bonuses': [max_range_bonus, falloff_bonus]
+        }
+        
+        # 构建新的 bonuses 列表，移除2条单独的效果加成
+        new_bonuses = []
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if (('武器扰断器最佳射程' in bonus_text and '失准范围' not in bonus_text) or 
+                '武器扰断器失准范围' in bonus_text):
+                continue
+            new_bonuses.append(bonus_dict)
+        
+        return new_bonuses, merged_bonus
+    
+    def _merge_target_painter_cpu_activation_bonuses(self, bonuses):
+        """合并索敌扰断器CPU需求和启动消耗：当两者同时存在且数值相等时，合并为一条
+        
+        返回: (new_bonuses, merged_bonus)
+        merged_bonus 为 None 表示没有合并，否则包含合并后的信息
+        """
+        # 查找索敌扰断器CPU需求降低和启动消耗降低加成
+        cpu_bonus = None
+        activation_bonus = None
+        
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if '索敌扰断器CPU需求降低' in bonus_text:
+                cpu_bonus = bonus_dict
+            elif '索敌扰断器启动消耗降低' in bonus_text:
+                activation_bonus = bonus_dict
+        
+        # 检查是否两者都存在
+        if not (cpu_bonus and activation_bonus):
+            return bonuses, None
+        
+        # 提取数值
+        cpu_match = re.search(r'(\d+\.?\d*)%', cpu_bonus['text'])
+        activation_match = re.search(r'(\d+\.?\d*)%', activation_bonus['text'])
+        
+        if not (cpu_match and activation_match):
+            return bonuses, None
+        
+        cpu_value = cpu_match.group(1)
+        activation_value = activation_match.group(1)
+        
+        # 检查数值是否相等
+        if cpu_value != activation_value:
+            return bonuses, None
+        
+        # 构建合并后的索敌扰断器启动消耗和CPU需求降低信息（数值取负号）
+        merged_bonus = {
+            'text': f"-{cpu_value}%索敌扰断器启动消耗和CPU需求降低",
+            'value': f"-{cpu_value}",
+            'bonuses': [cpu_bonus, activation_bonus]
+        }
+        
+        # 构建新的 bonuses 列表，移除2条单独的效果加成
+        new_bonuses = []
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if ('索敌扰断器CPU需求降低' in bonus_text or 
+                '索敌扰断器启动消耗降低' in bonus_text):
+                continue
+            new_bonuses.append(bonus_dict)
+        
+        return new_bonuses, merged_bonus
+    
     def _build_result(self, item_info, skill_bonuses_dict, unique_bonuses_list, attr_dict, item_name_cn):
         """构建结果文本
         
@@ -486,6 +592,10 @@ class EVEESITester:
                 bonuses, merged_armor_bonus = self._merge_armor_resistance_bonuses(bonuses)
                 # 处理武器扰断器效果加成合并
                 bonuses, merged_weapon_disruption_bonus = self._merge_weapon_disruption_bonuses(bonuses)
+                # 处理武器扰断器最佳射程和失准范围合并
+                bonuses, merged_range_falloff_bonus = self._merge_weapon_range_falloff_bonuses(bonuses)
+                # 处理索敌扰断器CPU需求和启动消耗合并
+                bonuses, merged_target_painter_bonus = self._merge_target_painter_cpu_activation_bonuses(bonuses)
                 part = f"{skill_type}每升一级:\n"
                 for bonus_dict in bonuses:
                     bonus_text = bonus_dict['text']
@@ -526,6 +636,38 @@ class EVEESITester:
                         # 计算缩进：数值部分的长度 + 1
                         indent = len(bonus_text) + 1
                         part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+                # 如果有合并的武器扰断器最佳射程和失准范围惩罚，特殊格式输出
+                if merged_range_falloff_bonus:
+                    bonus_text = merged_range_falloff_bonus['text']
+                    # 第一行显示数值和描述，以及第一个 effect_name|modified_attr|modifying_attr
+                    first_bonus = merged_range_falloff_bonus['bonuses'][0]
+                    first_modified_attr = first_bonus['attr_name']
+                    first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                    part += f"{bonus_text}({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    # 后续行只显示 effect_name|modified_attr|modifying_attr，前面加空格对齐
+                    for i in range(1, len(merged_range_falloff_bonus['bonuses'])):
+                        bonus_info = merged_range_falloff_bonus['bonuses'][i]
+                        modified_attr = bonus_info['attr_name']
+                        modifying_attr = bonus_info.get('modifying_attr_name', '')
+                        # 计算缩进：数值部分的长度 + 1
+                        indent = len(bonus_text) + 1
+                        part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+                # 如果有合并的索敌扰断器启动消耗和CPU需求降低，特殊格式输出
+                if merged_target_painter_bonus:
+                    bonus_text = merged_target_painter_bonus['text']
+                    # 第一行显示数值和描述，以及第一个 effect_name|modified_attr|modifying_attr
+                    first_bonus = merged_target_painter_bonus['bonuses'][0]
+                    first_modified_attr = first_bonus['attr_name']
+                    first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                    part += f"{bonus_text}({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    # 后续行只显示 effect_name|modified_attr|modifying_attr，前面加空格对齐
+                    for i in range(1, len(merged_target_painter_bonus['bonuses'])):
+                        bonus_info = merged_target_painter_bonus['bonuses'][i]
+                        modified_attr = bonus_info['attr_name']
+                        modifying_attr = bonus_info.get('modifying_attr_name', '')
+                        # 计算缩进：数值部分的长度 + 1
+                        indent = len(bonus_text) + 1
+                        part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
                 part += "\n"
                 result_parts.append(part)
         
@@ -534,6 +676,12 @@ class EVEESITester:
         # 输出特有加成
         if unique_bonuses_list:
             result += "特有加成\n"
+            # 对特有加成也进行合并处理
+            unique_bonuses_list, merged_armor_bonus = self._merge_armor_resistance_bonuses(unique_bonuses_list)
+            unique_bonuses_list, merged_weapon_disruption_bonus = self._merge_weapon_disruption_bonuses(unique_bonuses_list)
+            unique_bonuses_list, merged_range_falloff_bonus = self._merge_weapon_range_falloff_bonuses(unique_bonuses_list)
+            unique_bonuses_list, merged_target_painter_bonus = self._merge_target_painter_cpu_activation_bonuses(unique_bonuses_list)
+            
             for bonus_dict in unique_bonuses_list:
                 bonus_text = bonus_dict['text']
                 effect_name = bonus_dict['effect_name']
@@ -541,9 +689,138 @@ class EVEESITester:
                 modified_attr = bonus_dict['attr_name']
                 modifying_attr = bonus_dict.get('modifying_attr_name', '')
                 result += f"{bonus_text}({effect_name}|{modified_attr}|{modifying_attr})\n"
+            
+            # 输出合并的装甲抗性加成
+            if merged_armor_bonus:
+                bonus_text = merged_armor_bonus['text']
+                first_bonus = merged_armor_bonus['bonuses'][0]
+                first_modified_attr = first_bonus['attr_name']
+                first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                result += f"{bonus_text}({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                for i in range(1, len(merged_armor_bonus['bonuses'])):
+                    bonus_info = merged_armor_bonus['bonuses'][i]
+                    modified_attr = bonus_info['attr_name']
+                    modifying_attr = bonus_info.get('modifying_attr_name', '')
+                    indent = len(bonus_text) + 1
+                    result += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+            
+            # 输出合并的武器扰断器效果加成
+            if merged_weapon_disruption_bonus:
+                bonus_text = merged_weapon_disruption_bonus['text']
+                first_bonus = merged_weapon_disruption_bonus['bonuses'][0]
+                first_modified_attr = first_bonus['attr_name']
+                first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                result += f"{bonus_text}({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                for i in range(1, len(merged_weapon_disruption_bonus['bonuses'])):
+                    bonus_info = merged_weapon_disruption_bonus['bonuses'][i]
+                    modified_attr = bonus_info['attr_name']
+                    modifying_attr = bonus_info.get('modifying_attr_name', '')
+                    indent = len(bonus_text) + 1
+                    result += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+            
+            # 输出合并的武器扰断器最佳射程和失准范围惩罚
+            if merged_range_falloff_bonus:
+                bonus_text = merged_range_falloff_bonus['text']
+                first_bonus = merged_range_falloff_bonus['bonuses'][0]
+                first_modified_attr = first_bonus['attr_name']
+                first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                result += f"{bonus_text}({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                for i in range(1, len(merged_range_falloff_bonus['bonuses'])):
+                    bonus_info = merged_range_falloff_bonus['bonuses'][i]
+                    modified_attr = bonus_info['attr_name']
+                    modifying_attr = bonus_info.get('modifying_attr_name', '')
+                    indent = len(bonus_text) + 1
+                    result += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+            
+            # 输出合并的索敌扰断器启动消耗和CPU需求降低
+            if merged_target_painter_bonus:
+                bonus_text = merged_target_painter_bonus['text']
+                first_bonus = merged_target_painter_bonus['bonuses'][0]
+                first_modified_attr = first_bonus['attr_name']
+                first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                result += f"{bonus_text}({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                for i in range(1, len(merged_target_painter_bonus['bonuses'])):
+                    bonus_info = merged_target_painter_bonus['bonuses'][i]
+                    modified_attr = bonus_info['attr_name']
+                    modifying_attr = bonus_info.get('modifying_attr_name', '')
+                    indent = len(bonus_text) + 1
+                    result += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+            
             result += "\n"
         
         return result
+    
+    async def get_server_status(self):
+        """获取服务器状态信息"""
+        # EVE 国服 ESI 服务器状态接口
+        status_url = "https://ali-esi.evepc.163.com/v1/status/"
+        
+        try:
+            async with self.session.get(status_url) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    
+                    # 解析状态数据
+                    players = data.get('players', 0)
+                    server_version = data.get('server_version', '未知')
+                    start_time = data.get('start_time', '')
+                    
+                    # 格式化启动时间
+                    start_time_str = '未知'
+                    if start_time:
+                        try:
+                            # ISO 格式时间转换
+                            from datetime import datetime, timezone, timedelta
+                            dt = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+                            # 转换为北京时间（UTC+8）
+                            beijing_tz = timezone(timedelta(hours=8))
+                            dt_beijing = dt.astimezone(beijing_tz)
+                            start_time_str = dt_beijing.strftime('%Y-%m-%d %H:%M:%S')
+                        except:
+                            start_time_str = start_time
+                    
+                    # 构建状态信息
+                    status_text = f"""🌐 EVE 服务器状态
+
+━━━━━━━━━━━━━━━━━━━━━━
+📊 在线人数: {players:,} 人
+🔧 服务器版本: {server_version}
+⏰ 启动时间: {start_time_str}
+✅ 服务器状态: 正常运行
+━━━━━━━━━━━━━━━━━━━━━━"""
+                    
+                    print(status_text)
+                    return status_text
+                elif response.status == 503:
+                    status_text = """🌐 EVE 服务器状态
+
+━━━━━━━━━━━━━━━━━━━━━━
+❌ 服务器状态: 维护中
+━━━━━━━━━━━━━━━━━━━━━━
+
+服务器正在进行维护，请稍后再试。"""
+                    print(status_text)
+                    return status_text
+                else:
+                    status_text = f"""🌐 EVE 服务器状态
+
+━━━━━━━━━━━━━━━━━━━━━━
+⚠️ 无法获取服务器状态
+HTTP 状态码: {response.status}
+━━━━━━━━━━━━━━━━━━━━━━"""
+                    print(status_text)
+                    return status_text
+        except aiohttp.ClientError as e:
+            status_text = f"""🌐 EVE 服务器状态
+
+━━━━━━━━━━━━━━━━━━━━━━
+❌ 连接失败
+错误信息: {str(e)}
+━━━━━━━━━━━━━━━━━━━━━━
+
+无法连接到 EVE 服务器，请检查网络连接。"""
+            print(status_text)
+            return status_text
     
     async def run(self, query):
         """运行查询"""
@@ -587,13 +864,24 @@ class EVEESITester:
 async def main():
     if len(sys.argv) < 2:
         print("用法: python test_111_v2.py <物品名称或ID>")
+        print("       python test_111_v2.py status")
         print("示例: python test_111_v2.py 科洛斯级")
         print("       python test_111_v2.py 11182")
+        print("       python test_111_v2.py status")
         sys.exit(1)
     
     query = sys.argv[1]
     tester = EVEESITester()
-    await tester.run(query)
+    
+    # 支持查询服务器状态
+    if query.lower() == 'status':
+        await tester.initialize()
+        try:
+            await tester.get_server_status()
+        finally:
+            await tester.shutdown()
+    else:
+        await tester.run(query)
 
 
 if __name__ == "__main__":

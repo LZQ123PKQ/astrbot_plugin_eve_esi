@@ -1,7 +1,10 @@
 from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
+from astrbot.core.utils.astrbot_path import get_astrbot_data_path
+from datetime import datetime, date, timezone, timedelta
 import aiohttp
+import asyncio
 import json
 import os
 import time
@@ -36,17 +39,29 @@ is_role_bonus = _effect_dict.is_role_bonus
 should_hide_effect = _effect_dict.should_hide_effect
 get_effect_description = _effect_dict.get_effect_description
 
-@register("eve_esi", "LZQ123PKQ", "EVE市场助手", "2.1.1")
+@register("eve_esi", "LZQ123PKQ", "EVE市场助手", "2.1.2")
 class EveESIPlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
-        # 使用当前目录存储配置
-        self.data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+        # 使用 AstrBot 的 data 目录存储配置，防止更新时被覆盖
+        # 按照 AstrBot 官方文档推荐的方式获取数据目录
+        from pathlib import Path
+        self.data_dir = str(Path(get_astrbot_data_path()) / "plugin_data" / "eve_esi")
         os.makedirs(self.data_dir, exist_ok=True)
         # 简称字典文件
         self.alias_file = os.path.join(self.data_dir, "aliases.json")
         # 加载简称字典
         self.aliases = self._load_aliases()
+        # 服务器状态监控配置
+        self.monitor_config_file = os.path.join(self.data_dir, "monitor_config.json")
+        self.monitor_config = self._load_monitor_config()
+        # 服务器状态监控任务
+        self.monitor_task = None
+        # 服务器状态记录（按群聊分别记录）
+        self.group_server_status = {}  # {group_id: last_status}
+        # 记录今天是否已经检测到开服（每天重置）
+        self.today_online_notified = set()  # {group_id}
+        self.last_check_date = None
         # 初始化aiohttp ClientSession
         self.session = None
         
@@ -55,13 +70,218 @@ class EveESIPlugin(Star):
         logger.info("EVE ESI 插件初始化")
         # 创建aiohttp ClientSession
         self.session = aiohttp.ClientSession()
+        # 如果有任何群聊启用了监控，启动监控任务
+        enabled_groups = [gid for gid, config in self.monitor_config.items() if config.get('enabled', False)]
+        if enabled_groups:
+            logger.info(f"发现已启用的监控群聊: {enabled_groups}")
+            self._start_monitor_task()
+        else:
+            logger.info("没有启用的监控群聊")
 
     async def shutdown(self):
         """插件关闭方法"""
         logger.info("EVE ESI 插件关闭")
+        # 停止监控任务
+        if self.monitor_task:
+            self.monitor_task.cancel()
+            try:
+                await self.monitor_task
+            except asyncio.CancelledError:
+                pass
+            self.monitor_task = None
         # 关闭aiohttp ClientSession
         if self.session:
             await self.session.close()
+    
+    def _load_monitor_config(self):
+        """加载监控配置"""
+        try:
+            if os.path.exists(self.monitor_config_file):
+                with open(self.monitor_config_file, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+        except Exception as e:
+            logger.error(f"加载监控配置失败: {e}")
+        # 配置格式: {group_id: {'enabled': True/False}}
+        return {}
+    
+    def _save_monitor_config(self):
+        """保存监控配置"""
+        try:
+            with open(self.monitor_config_file, 'w', encoding='utf-8') as f:
+                json.dump(self.monitor_config, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger.error(f"保存监控配置失败: {e}")
+    
+    def _is_group_monitor_enabled(self, group_id):
+        """检查指定群聊是否启用了监控"""
+        if not group_id:
+            return False
+        return self.monitor_config.get(group_id, {}).get('enabled', False)
+    
+    def _set_group_monitor_enabled(self, group_id, enabled):
+        """设置指定群聊的监控状态"""
+        if not group_id:
+            return
+        if group_id not in self.monitor_config:
+            self.monitor_config[group_id] = {}
+        self.monitor_config[group_id]['enabled'] = enabled
+        self._save_monitor_config()
+    
+    def _start_monitor_task(self):
+        """启动监控任务"""
+        if self.monitor_task is None:
+            self.monitor_task = asyncio.create_task(self._monitor_server_status())
+            logger.info("服务器状态监控任务已启动")
+        elif self.monitor_task.done():
+            # 如果任务已完成，重置并创建新任务
+            try:
+                self.monitor_task.result()  # 获取结果以清理异常
+            except:
+                pass
+            self.monitor_task = asyncio.create_task(self._monitor_server_status())
+            logger.info("服务器状态监控任务已重新启动")
+    
+    def _stop_monitor_task(self):
+        """停止监控任务"""
+        if self.monitor_task and not self.monitor_task.done():
+            self.monitor_task.cancel()
+            self.monitor_task = None
+            logger.info("服务器状态监控任务已停止")
+    
+    async def _monitor_server_status(self):
+        """监控服务器状态的后台任务
+        
+        监控逻辑：
+        1. 用户只需开启一次，永久有效（直到手动关闭）
+        2. 每天11:00开始监控
+        3. 检测到服务器开服后，当天停止监控该群聊
+        4. 第二天11:00自动重新开始监控
+        """
+        logger.info("服务器状态监控任务开始运行")
+        try:
+            while True:
+                # 获取当前时间（使用局部导入确保兼容性）
+                from datetime import datetime
+                now = datetime.now()
+                today = now.date()
+                
+                # 检查是否是新的一天，如果是则重置开服通知记录
+                if self.last_check_date != today:
+                    self.today_online_notified = set()
+                    self.last_check_date = today
+                    logger.info(f"新的一天 {today}，重置开服通知记录")
+                
+                # 检查是否在监控时间段（11:00开始）
+                if now.hour >= 11:
+                    logger.debug(f"当前时间 {now.hour}:{now.minute}，开始检测服务器状态")
+                    # 查询服务器状态
+                    is_online = await self._check_server_online()
+                    logger.debug(f"服务器状态: {'在线' if is_online else '维护中'}")
+                    
+                    # 获取所有启用的监控群组
+                    enabled_groups = [gid for gid, config in self.monitor_config.items() if config.get('enabled', False)]
+                    logger.debug(f"启用的监控群聊: {enabled_groups}")
+                    
+                    for group_id in enabled_groups:
+                        # 如果今天已经通知过开服了，跳过该群聊
+                        if group_id in self.today_online_notified:
+                            continue
+                        
+                        # 获取该群聊上次的状态
+                        last_status = self.group_server_status.get(group_id)
+                        
+                        # 状态变化检测（首次检测时也发送通知）
+                        if last_status is None:
+                            # 首次检测，记录状态但不发送通知（避免启动时误报）
+                            self.group_server_status[group_id] = is_online
+                            logger.info(f"群聊 {group_id} 首次检测，服务器状态: {'在线' if is_online else '维护中'}")
+                        elif is_online != last_status:
+                            # 状态发生变化
+                            if is_online:
+                                # 服务器从维护变为正常（开服了）
+                                await self._send_server_online_notification(group_id)
+                                # 记录今天已经通知过开服
+                                self.today_online_notified.add(group_id)
+                                logger.info(f"群聊 {group_id} 服务器已开服，今天不再监控该群聊")
+                            else:
+                                # 服务器从正常变为维护
+                                await self._send_server_offline_notification(group_id)
+                            
+                            # 更新该群聊的状态记录
+                            self.group_server_status[group_id] = is_online
+                
+                # 等待1分钟
+                await asyncio.sleep(60)
+        except asyncio.CancelledError:
+            logger.info("服务器状态监控任务被取消")
+            raise
+        except Exception as e:
+            logger.error(f"服务器状态监控任务出错: {e}")
+    
+    async def _check_server_online(self):
+        """检查服务器是否在线"""
+        try:
+            status_url = "https://ali-esi.evepc.163.com/v1/status/"
+            async with self.session.get(status_url, timeout=10) as response:
+                is_online = response.status == 200
+                logger.debug(f"检查服务器状态: HTTP {response.status}, 在线: {is_online}")
+                return is_online
+        except Exception as e:
+            logger.debug(f"检查服务器状态失败: {e}")
+            return False
+    
+    async def _send_server_offline_notification(self, group_id):
+        """发送服务器维护通知到指定群聊"""
+        try:
+            # 使用 LLM 生成消息
+            message = await self._generate_llm_message("服务器维护通知", "EVE服务器刚刚进入维护状态")
+            await self._send_message_to_group(group_id, message)
+        except Exception as e:
+            logger.error(f"发送维护通知到群组 {group_id} 失败: {e}")
+    
+    async def _send_server_online_notification(self, group_id):
+        """发送服务器开服通知到指定群聊"""
+        try:
+            # 使用 LLM 生成消息
+            message = await self._generate_llm_message("服务器开服通知", "EVE服务器已经开服了")
+            await self._send_message_to_group(group_id, message)
+        except Exception as e:
+            logger.error(f"发送开服通知到群组 {group_id} 失败: {e}")
+    
+    async def _generate_llm_message(self, context, default_message):
+        """使用 LLM 生成消息"""
+        try:
+            # 构建提示词
+            prompt = f"""你是一位 EVE Online 游戏助手，现在需要向玩家群发送一条消息。
+
+场景：{context}
+默认消息：{default_message}
+
+请生成一条友好、有趣、符合 EVE 游戏氛围的消息。可以包含一些 EVE 相关的梗或幽默元素。
+要求：
+1. 消息简洁，不超过100字
+2. 语气友好活泼
+3. 可以适当使用 emoji
+
+请直接输出消息内容，不要添加任何解释。"""
+            
+            # 调用 LLM 生成消息
+            llm_response = await self.context.get_llm_response(prompt)
+            if llm_response and llm_response.strip():
+                return llm_response.strip()
+        except Exception as e:
+            logger.error(f"LLM 生成消息失败: {e}")
+        
+        # 如果 LLM 失败，返回默认消息
+        return default_message
+    
+    async def _send_message_to_group(self, group_id, message):
+        """发送消息到指定群聊"""
+        try:
+            # 使用 AstrBot 的消息发送接口
+            await self.context.send_message(group_id, message)
+        except Exception as e:
+            logger.error(f"发送消息到群组 {group_id} 失败: {e}")
 
     def _load_aliases(self):
         """加载简称字典"""
@@ -1140,6 +1360,114 @@ class EveESIPlugin(Star):
         
         return new_bonuses, merged_bonus
     
+    def _merge_weapon_range_falloff_bonuses(self, bonuses):
+        """合并武器扰断器最佳射程和失准范围：当两者同时存在且数值相等时，合并为一条
+        
+        返回: (new_bonuses, merged_bonus)
+        merged_bonus 为 None 表示没有合并，否则包含合并后的信息
+        """
+        # 查找武器扰断器最佳射程和失准范围加成
+        max_range_bonus = None
+        falloff_bonus = None
+        
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if '武器扰断器最佳射程' in bonus_text and '失准范围' not in bonus_text:
+                max_range_bonus = bonus_dict
+            elif '武器扰断器失准范围' in bonus_text:
+                falloff_bonus = bonus_dict
+        
+        # 检查是否两者都存在
+        if not (max_range_bonus and falloff_bonus):
+            return bonuses, None
+        
+        # 提取数值
+        import re
+        max_range_match = re.search(r'(\d+\.?\d*)%', max_range_bonus['text'])
+        falloff_match = re.search(r'(\d+\.?\d*)%', falloff_bonus['text'])
+        
+        if not (max_range_match and falloff_match):
+            return bonuses, None
+        
+        max_range_value = max_range_match.group(1)
+        falloff_value = falloff_match.group(1)
+        
+        # 检查数值是否相等
+        if max_range_value != falloff_value:
+            return bonuses, None
+        
+        # 构建合并后的武器扰断器最佳射程和失准范围惩罚信息（数值取负号）
+        merged_bonus = {
+            'text': f"-{max_range_value}%武器扰断器最佳射程和失准范围惩罚",
+            'value': f"-{max_range_value}",
+            'bonuses': [max_range_bonus, falloff_bonus]
+        }
+        
+        # 构建新的 bonuses 列表，移除2条单独的效果加成
+        new_bonuses = []
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if (('武器扰断器最佳射程' in bonus_text and '失准范围' not in bonus_text) or 
+                '武器扰断器失准范围' in bonus_text):
+                continue
+            new_bonuses.append(bonus_dict)
+        
+        return new_bonuses, merged_bonus
+    
+    def _merge_target_painter_cpu_activation_bonuses(self, bonuses):
+        """合并索敌扰断器CPU需求和启动消耗：当两者同时存在且数值相等时，合并为一条
+        
+        返回: (new_bonuses, merged_bonus)
+        merged_bonus 为 None 表示没有合并，否则包含合并后的信息
+        """
+        # 查找索敌扰断器CPU需求降低和启动消耗降低加成
+        cpu_bonus = None
+        activation_bonus = None
+        
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if '索敌扰断器CPU需求降低' in bonus_text:
+                cpu_bonus = bonus_dict
+            elif '索敌扰断器启动消耗降低' in bonus_text:
+                activation_bonus = bonus_dict
+        
+        # 检查是否两者都存在
+        if not (cpu_bonus and activation_bonus):
+            return bonuses, None
+        
+        # 提取数值
+        import re
+        cpu_match = re.search(r'(\d+\.?\d*)%', cpu_bonus['text'])
+        activation_match = re.search(r'(\d+\.?\d*)%', activation_bonus['text'])
+        
+        if not (cpu_match and activation_match):
+            return bonuses, None
+        
+        cpu_value = cpu_match.group(1)
+        activation_value = activation_match.group(1)
+        
+        # 检查数值是否相等
+        if cpu_value != activation_value:
+            return bonuses, None
+        
+        # 构建合并后的索敌扰断器启动消耗和CPU需求降低信息（数值取负号）
+        merged_bonus = {
+            'text': f"-{cpu_value}%索敌扰断器启动消耗和CPU需求降低",
+            'value': f"-{cpu_value}",
+            'bonuses': [cpu_bonus, activation_bonus]
+        }
+        
+        # 构建新的 bonuses 列表，移除2条单独的效果加成
+        new_bonuses = []
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if ('索敌扰断器CPU需求降低' in bonus_text or 
+                '索敌扰断器启动消耗降低' in bonus_text):
+                continue
+            new_bonuses.append(bonus_dict)
+        
+        return new_bonuses, merged_bonus
+    
     def _build_result(self, item_info, skill_bonuses_dict, unique_bonuses_list, attr_dict, item_name_cn):
         """构建结果文本（同步自 test_111_v2.py）
         
@@ -1161,6 +1489,10 @@ class EveESIPlugin(Star):
                 bonuses, merged_armor_bonus = self._merge_armor_resistance_bonuses(bonuses)
                 # 处理武器扰断器效果加成合并
                 bonuses, merged_weapon_disruption_bonus = self._merge_weapon_disruption_bonuses(bonuses)
+                # 处理武器扰断器最佳射程和失准范围合并
+                bonuses, merged_range_falloff_bonus = self._merge_weapon_range_falloff_bonuses(bonuses)
+                # 处理索敌扰断器CPU需求和启动消耗合并
+                bonuses, merged_target_painter_bonus = self._merge_target_painter_cpu_activation_bonuses(bonuses)
                 part = f"{skill_type}每升一级:\n"
                 for bonus_dict in bonuses:
                     bonus_text = bonus_dict['text']
@@ -1201,6 +1533,38 @@ class EveESIPlugin(Star):
                         # 计算缩进：数值部分的长度 + 1
                         indent = len(bonus_text) + 1
                         part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+                # 如果有合并的武器扰断器最佳射程和失准范围惩罚，特殊格式输出
+                if merged_range_falloff_bonus:
+                    bonus_text = merged_range_falloff_bonus['text']
+                    # 第一行显示数值和描述，以及第一个 effect_name|modified_attr|modifying_attr
+                    first_bonus = merged_range_falloff_bonus['bonuses'][0]
+                    first_modified_attr = first_bonus['attr_name']
+                    first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                    part += f"{bonus_text}({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    # 后续行只显示 effect_name|modified_attr|modifying_attr，前面加空格对齐
+                    for i in range(1, len(merged_range_falloff_bonus['bonuses'])):
+                        bonus_info = merged_range_falloff_bonus['bonuses'][i]
+                        modified_attr = bonus_info['attr_name']
+                        modifying_attr = bonus_info.get('modifying_attr_name', '')
+                        # 计算缩进：数值部分的长度 + 1
+                        indent = len(bonus_text) + 1
+                        part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+                # 如果有合并的索敌扰断器启动消耗和CPU需求降低，特殊格式输出
+                if merged_target_painter_bonus:
+                    bonus_text = merged_target_painter_bonus['text']
+                    # 第一行显示数值和描述，以及第一个 effect_name|modified_attr|modifying_attr
+                    first_bonus = merged_target_painter_bonus['bonuses'][0]
+                    first_modified_attr = first_bonus['attr_name']
+                    first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                    part += f"{bonus_text}({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    # 后续行只显示 effect_name|modified_attr|modifying_attr，前面加空格对齐
+                    for i in range(1, len(merged_target_painter_bonus['bonuses'])):
+                        bonus_info = merged_target_painter_bonus['bonuses'][i]
+                        modified_attr = bonus_info['attr_name']
+                        modifying_attr = bonus_info.get('modifying_attr_name', '')
+                        # 计算缩进：数值部分的长度 + 1
+                        indent = len(bonus_text) + 1
+                        part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
                 part += "\n"
                 result_parts.append(part)
         
@@ -1209,6 +1573,12 @@ class EveESIPlugin(Star):
         # 输出特有加成
         if unique_bonuses_list:
             result += "特有加成\n"
+            # 对特有加成也进行合并处理
+            unique_bonuses_list, merged_armor_bonus = self._merge_armor_resistance_bonuses(unique_bonuses_list)
+            unique_bonuses_list, merged_weapon_disruption_bonus = self._merge_weapon_disruption_bonuses(unique_bonuses_list)
+            unique_bonuses_list, merged_range_falloff_bonus = self._merge_weapon_range_falloff_bonuses(unique_bonuses_list)
+            unique_bonuses_list, merged_target_painter_bonus = self._merge_target_painter_cpu_activation_bonuses(unique_bonuses_list)
+            
             for bonus_dict in unique_bonuses_list:
                 bonus_text = bonus_dict['text']
                 effect_name = bonus_dict['effect_name']
@@ -1216,6 +1586,63 @@ class EveESIPlugin(Star):
                 modified_attr = bonus_dict['attr_name']
                 modifying_attr = bonus_dict.get('modifying_attr_name', '')
                 result += f"{bonus_text}({effect_name}|{modified_attr}|{modifying_attr})\n"
+            
+            # 输出合并的装甲抗性加成
+            if merged_armor_bonus:
+                bonus_text = merged_armor_bonus['text']
+                first_bonus = merged_armor_bonus['bonuses'][0]
+                first_modified_attr = first_bonus['attr_name']
+                first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                result += f"{bonus_text}({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                for i in range(1, len(merged_armor_bonus['bonuses'])):
+                    bonus_info = merged_armor_bonus['bonuses'][i]
+                    modified_attr = bonus_info['attr_name']
+                    modifying_attr = bonus_info.get('modifying_attr_name', '')
+                    indent = len(bonus_text) + 1
+                    result += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+            
+            # 输出合并的武器扰断器效果加成
+            if merged_weapon_disruption_bonus:
+                bonus_text = merged_weapon_disruption_bonus['text']
+                first_bonus = merged_weapon_disruption_bonus['bonuses'][0]
+                first_modified_attr = first_bonus['attr_name']
+                first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                result += f"{bonus_text}({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                for i in range(1, len(merged_weapon_disruption_bonus['bonuses'])):
+                    bonus_info = merged_weapon_disruption_bonus['bonuses'][i]
+                    modified_attr = bonus_info['attr_name']
+                    modifying_attr = bonus_info.get('modifying_attr_name', '')
+                    indent = len(bonus_text) + 1
+                    result += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+            
+            # 输出合并的武器扰断器最佳射程和失准范围惩罚
+            if merged_range_falloff_bonus:
+                bonus_text = merged_range_falloff_bonus['text']
+                first_bonus = merged_range_falloff_bonus['bonuses'][0]
+                first_modified_attr = first_bonus['attr_name']
+                first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                result += f"{bonus_text}({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                for i in range(1, len(merged_range_falloff_bonus['bonuses'])):
+                    bonus_info = merged_range_falloff_bonus['bonuses'][i]
+                    modified_attr = bonus_info['attr_name']
+                    modifying_attr = bonus_info.get('modifying_attr_name', '')
+                    indent = len(bonus_text) + 1
+                    result += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+            
+            # 输出合并的索敌扰断器启动消耗和CPU需求降低
+            if merged_target_painter_bonus:
+                bonus_text = merged_target_painter_bonus['text']
+                first_bonus = merged_target_painter_bonus['bonuses'][0]
+                first_modified_attr = first_bonus['attr_name']
+                first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                result += f"{bonus_text}({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                for i in range(1, len(merged_target_painter_bonus['bonuses'])):
+                    bonus_info = merged_target_painter_bonus['bonuses'][i]
+                    modified_attr = bonus_info['attr_name']
+                    modifying_attr = bonus_info.get('modifying_attr_name', '')
+                    indent = len(bonus_text) + 1
+                    result += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+            
             result += "\n"
         
         return result
@@ -1444,9 +1871,165 @@ class EveESIPlugin(Star):
 • 伊甸币(PLEX)查询暂不支持
 • 模糊搜索自动过滤涂装和蓝图
 • 一个全称可设置多个简称
-• 搜索任意简称会自动转换为全称"""
+• 搜索任意简称会自动转换为全称
+
+━━━━━━━━━━━━━━━━━━━━━━
+🌐 服务器状态
+━━━━━━━━━━━━━━━━━━━━━━
+/状态 - 查询 EVE 服务器状态和监控状态
+  → 显示在线人数、服务器版本、启动时间
+  → 显示本群监控状态
+
+/状态开 - 开启本群服务器状态监控（只需开启一次，永久有效）
+/状态关 - 关闭本群服务器状态监控
+  → 每天11:00开始自动检测
+  → 开服后当天停止检测，第二天11:00自动恢复
+  → 维护/开服时自动通知
+  → 使用AI生成通知消息"""
 
         yield event.plain_result(help_text)
+
+    @filter.command("状态")
+    async def server_status_command(self, event: AstrMessageEvent):
+        """查询 EVE 服务器状态和本群监控状态"""
+        try:
+            # 获取服务器状态
+            server_status = await self._get_server_status_with_monitor()
+            
+            # 获取当前群聊监控状态（仅在群聊中显示）
+            group_id = event.message_obj.group_id if event.message_obj else ""
+            if group_id:
+                is_enabled = self._is_group_monitor_enabled(group_id)
+                
+                monitor_info = f"\n━━━━━━━━━━━━━━━━━━━━━━\n📊 本群监控状态\n━━━━━━━━━━━━━━━━━━━━━━\n"
+                monitor_info += f"状态: {'✅ 开启' if is_enabled else '❌ 关闭'}\n"
+                
+                if is_enabled:
+                    monitor_info += f"监控时间: 每天11:00开始，直到服务器开服\n"
+                    monitor_info += f"检测间隔: 1分钟\n"
+                    monitor_info += f"\n💡 维护或开服时会自动发送通知\n"
+                    monitor_info += f"💡 开服后当天停止，第二天11:00自动恢复"
+                else:
+                    monitor_info += f"\n💡 使用 /状态开 开启监控（只需开启一次）"
+                
+                server_status += monitor_info
+            # 私聊时只显示服务器状态，不显示监控信息
+            
+            yield event.plain_result(server_status)
+        except Exception as e:
+            logger.error(f"查询服务器状态失败: {e}")
+            yield event.plain_result(f"查询服务器状态失败: {e}")
+
+    @filter.command("状态开")
+    async def monitor_enable_command(self, event: AstrMessageEvent):
+        """开启本群服务器状态监控"""
+        try:
+            group_id = event.message_obj.group_id if event.message_obj else ""
+            if not group_id:
+                yield event.plain_result("请在群组中使用此命令")
+                return
+            
+            # 设置当前群聊的监控状态
+            self._set_group_monitor_enabled(group_id, True)
+            
+            # 启动监控任务（如果还没启动）
+            self._start_monitor_task()
+            
+            yield event.plain_result(f"✅ 本群服务器状态监控已开启\n\n监控时间: 每天11:00-23:59\n检测间隔: 1分钟\n\n维护或开服时会自动发送通知")
+        except Exception as e:
+            logger.error(f"开启监控失败: {e}")
+            yield event.plain_result(f"开启监控失败: {e}")
+
+    @filter.command("状态关")
+    async def monitor_disable_command(self, event: AstrMessageEvent):
+        """关闭本群服务器状态监控"""
+        try:
+            group_id = event.message_obj.group_id if event.message_obj else ""
+            if not group_id:
+                yield event.plain_result("请在群组中使用此命令")
+                return
+            
+            # 设置当前群聊的监控状态
+            self._set_group_monitor_enabled(group_id, False)
+            
+            # 如果没有群聊启用监控了，停止监控任务
+            enabled_groups = [gid for gid, config in self.monitor_config.items() if config.get('enabled', False)]
+            if not enabled_groups:
+                self._stop_monitor_task()
+            
+            yield event.plain_result("✅ 本群服务器状态监控已关闭")
+        except Exception as e:
+            logger.error(f"关闭监控失败: {e}")
+            yield event.plain_result(f"关闭监控失败: {e}")
+
+    async def _get_server_status_with_monitor(self):
+        """获取服务器状态信息（供/状态命令使用，返回基础状态）"""
+        return await self._get_server_status()
+
+    async def _get_server_status(self):
+        """获取服务器状态信息"""
+        # EVE 国服 ESI 服务器状态接口
+        status_url = "https://ali-esi.evepc.163.com/v1/status/"
+        
+        try:
+            async with self.session.get(status_url) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    
+                    # 解析状态数据
+                    players = data.get('players', 0)
+                    server_version = data.get('server_version', '未知')
+                    start_time = data.get('start_time', '')
+                    
+                    # 格式化启动时间（UTC 转北京时间 UTC+8）
+                    start_time_str = '未知'
+                    if start_time:
+                        try:
+                            # ISO 格式时间转换（使用局部导入确保兼容性）
+                            from datetime import datetime, timezone, timedelta
+                            dt = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+                            # 转换为北京时间（UTC+8）
+                            beijing_tz = timezone(timedelta(hours=8))
+                            dt_beijing = dt.astimezone(beijing_tz)
+                            start_time_str = dt_beijing.strftime('%Y-%m-%d %H:%M:%S')
+                        except:
+                            start_time_str = start_time
+                    
+                    # 构建状态信息
+                    status_text = f"""🌐 EVE 服务器状态
+
+━━━━━━━━━━━━━━━━━━━━━━
+📊 在线人数: {players:,} 人
+🔧 服务器版本: {server_version}
+⏰ 启动时间: {start_time_str}
+✅ 服务器状态: 正常运行
+━━━━━━━━━━━━━━━━━━━━━━"""
+                    
+                    return status_text
+                elif response.status == 503:
+                    return """🌐 EVE 服务器状态
+
+━━━━━━━━━━━━━━━━━━━━━━
+❌ 服务器状态: 维护中
+━━━━━━━━━━━━━━━━━━━━━━
+
+服务器正在进行维护，请稍后再试。"""
+                else:
+                    return f"""🌐 EVE 服务器状态
+
+━━━━━━━━━━━━━━━━━━━━━━
+⚠️ 无法获取服务器状态
+HTTP 状态码: {response.status}
+━━━━━━━━━━━━━━━━━━━━━━"""
+        except aiohttp.ClientError as e:
+            return f"""🌐 EVE 服务器状态
+
+━━━━━━━━━━━━━━━━━━━━━━
+❌ 连接失败
+错误信息: {str(e)}
+━━━━━━━━━━━━━━━━━━━━━━
+
+无法连接到 EVE 服务器，请检查网络连接。"""
 
     # ==================== LLM 工具 ====================
 
@@ -1865,3 +2448,24 @@ class EveESIPlugin(Star):
         except Exception as e:
             logger.error(f"LLM工具添加effect到技能类型失败: {e}")
             return f"添加effect到技能类型时出错：{str(e)}"
+
+    @filter.llm_tool(name="query_server_status")
+    async def query_server_status_tool(self, event: AstrMessageEvent, query: str = "") -> str:
+        '''查询 EVE 服务器状态。适用于用户询问服务器是否在线、是否在维护、当前在线人数等场景。
+        
+        Args:
+            query(string): 查询内容，如"服务器状态"、"在线人数"等，可为空
+        
+        可以回答以下类型的问题：
+        - EVE服务器状态怎么样？
+        - 服务器在线吗？
+        - 服务器是否在维护？
+        - 现在有多少人在线？
+        - 服务器开了吗？
+        '''
+        try:
+            status_info = await self._get_server_status()
+            return status_info
+        except Exception as e:
+            logger.error(f"LLM工具查询服务器状态失败: {e}")
+            return f"查询服务器状态时出错：{str(e)}"
