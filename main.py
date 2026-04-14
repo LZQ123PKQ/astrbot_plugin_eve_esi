@@ -39,7 +39,7 @@ is_role_bonus = _effect_dict.is_role_bonus
 should_hide_effect = _effect_dict.should_hide_effect
 get_effect_description = _effect_dict.get_effect_description
 
-@register("eve_esi", "LZQ123PKQ", "EVE市场助手", "2.1.2")
+@register("eve_esi", "LZQ123PKQ", "EVE市场助手", "2.1.3")
 class EveESIPlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
@@ -118,13 +118,16 @@ class EveESIPlugin(Star):
             return False
         return self.monitor_config.get(group_id, {}).get('enabled', False)
     
-    def _set_group_monitor_enabled(self, group_id, enabled):
+    def _set_group_monitor_enabled(self, group_id, enabled, umo=None):
         """设置指定群聊的监控状态"""
         if not group_id:
             return
         if group_id not in self.monitor_config:
             self.monitor_config[group_id] = {}
         self.monitor_config[group_id]['enabled'] = enabled
+        # 保存 unified_msg_origin 用于后续发送消息
+        if umo:
+            self.monitor_config[group_id]['umo'] = umo
         self._save_monitor_config()
     
     def _start_monitor_task(self):
@@ -154,8 +157,9 @@ class EveESIPlugin(Star):
         监控逻辑：
         1. 用户只需开启一次，永久有效（直到手动关闭）
         2. 每天11:00开始监控
-        3. 检测到服务器开服后，当天停止监控该群聊
-        4. 第二天11:00自动重新开始监控
+        3. 检测到服务器维护时，发送通知
+        4. 检测到服务器开服后，发送通知，当天停止监控该群聊
+        5. 第二天11:00自动重新开始监控
         """
         logger.info("服务器状态监控任务开始运行")
         try:
@@ -190,11 +194,14 @@ class EveESIPlugin(Star):
                         # 获取该群聊上次的状态
                         last_status = self.group_server_status.get(group_id)
                         
-                        # 状态变化检测（首次检测时也发送通知）
+                        # 状态变化检测
                         if last_status is None:
-                            # 首次检测，记录状态但不发送通知（避免启动时误报）
+                            # 首次检测，记录状态
                             self.group_server_status[group_id] = is_online
                             logger.info(f"群聊 {group_id} 首次检测，服务器状态: {'在线' if is_online else '维护中'}")
+                            # 如果首次检测就是维护状态，发送维护通知
+                            if not is_online:
+                                await self._send_server_offline_notification(group_id)
                         elif is_online != last_status:
                             # 状态发生变化
                             if is_online:
@@ -233,28 +240,40 @@ class EveESIPlugin(Star):
     async def _send_server_offline_notification(self, group_id):
         """发送服务器维护通知到指定群聊"""
         try:
+            # 获取群聊的 unified_msg_origin
+            umo = self.monitor_config.get(group_id, {}).get('umo')
+            if not umo:
+                logger.error(f"群聊 {group_id} 没有 unified_msg_origin，无法发送通知")
+                return
+            
             # 使用 LLM 生成消息
             message = await self._generate_llm_message("服务器维护通知", "EVE服务器刚刚进入维护状态")
-            await self._send_message_to_group(group_id, message)
+            await self._send_message_to_group(umo, message)
         except Exception as e:
             logger.error(f"发送维护通知到群组 {group_id} 失败: {e}")
     
     async def _send_server_online_notification(self, group_id):
         """发送服务器开服通知到指定群聊"""
         try:
+            # 获取群聊的 unified_msg_origin
+            umo = self.monitor_config.get(group_id, {}).get('umo')
+            if not umo:
+                logger.error(f"群聊 {group_id} 没有 unified_msg_origin，无法发送通知")
+                return
+            
             # 使用 LLM 生成消息
             message = await self._generate_llm_message("服务器开服通知", "EVE服务器已经开服了")
-            await self._send_message_to_group(group_id, message)
+            await self._send_message_to_group(umo, message)
         except Exception as e:
             logger.error(f"发送开服通知到群组 {group_id} 失败: {e}")
     
-    async def _generate_llm_message(self, context, default_message):
+    async def _generate_llm_message(self, context_str, default_message):
         """使用 LLM 生成消息"""
         try:
             # 构建提示词
             prompt = f"""你是一位 EVE Online 游戏助手，现在需要向玩家群发送一条消息。
 
-场景：{context}
+场景：{context_str}
 默认消息：{default_message}
 
 请生成一条友好、有趣、符合 EVE 游戏氛围的消息。可以包含一些 EVE 相关的梗或幽默元素。
@@ -265,23 +284,28 @@ class EveESIPlugin(Star):
 
 请直接输出消息内容，不要添加任何解释。"""
             
-            # 调用 LLM 生成消息
-            llm_response = await self.context.get_llm_response(prompt)
-            if llm_response and llm_response.strip():
-                return llm_response.strip()
+            # 调用 LLM 生成消息 - 使用正确的 API
+            from astrbot.api.provider import ProviderRequest
+            provider_request = ProviderRequest(prompt=prompt, system_prompt="")
+            llm_response = await self.context.llm_chat(provider_request)
+            if llm_response and llm_response.completion_text and llm_response.completion_text.strip():
+                return llm_response.completion_text.strip()
         except Exception as e:
             logger.error(f"LLM 生成消息失败: {e}")
         
         # 如果 LLM 失败，返回默认消息
         return default_message
     
-    async def _send_message_to_group(self, group_id, message):
+    async def _send_message_to_group(self, umo, message):
         """发送消息到指定群聊"""
         try:
-            # 使用 AstrBot 的消息发送接口
-            await self.context.send_message(group_id, message)
+            # 使用 AstrBot 的消息发送接口 - 使用正确的 API
+            from astrbot.api.message_components import Plain
+            from astrbot.api.event import MessageChain
+            chain = MessageChain([Plain(message)])
+            await self.context.send_message(umo, chain)
         except Exception as e:
-            logger.error(f"发送消息到群组 {group_id} 失败: {e}")
+            logger.error(f"发送消息到群组 {umo} 失败: {e}")
 
     def _load_aliases(self):
         """加载简称字典"""
@@ -1398,7 +1422,7 @@ class EveESIPlugin(Star):
         
         # 构建合并后的武器扰断器最佳射程和失准范围惩罚信息（数值取负号）
         merged_bonus = {
-            'text': f"-{max_range_value}%武器扰断器最佳射程和失准范围惩罚",
+            'text': f"-{max_range_value}% 武器扰断器最佳射程和失准范围惩罚",
             'value': f"-{max_range_value}",
             'bonuses': [max_range_bonus, falloff_bonus]
         }
@@ -1452,7 +1476,7 @@ class EveESIPlugin(Star):
         
         # 构建合并后的索敌扰断器启动消耗和CPU需求降低信息（数值取负号）
         merged_bonus = {
-            'text': f"-{cpu_value}%索敌扰断器启动消耗和CPU需求降低",
+            'text': f"-{cpu_value}% 索敌扰断器启动消耗和CPU需求降低",
             'value': f"-{cpu_value}",
             'bonuses': [cpu_bonus, activation_bonus]
         }
@@ -1467,6 +1491,1713 @@ class EveESIPlugin(Star):
             new_bonuses.append(bonus_dict)
         
         return new_bonuses, merged_bonus
+    
+    def _merge_propulsion_overload_bonuses(self, bonuses):
+        """合并加力燃烧器和微型跃迁推进器过载效果加成：当两者同时存在且数值相等时，合并为一条
+        
+        返回: (new_bonuses, merged_bonus)
+        merged_bonus 为 None 表示没有合并，否则包含合并后的信息
+        """
+        # 查找加力燃烧器和微型跃迁推进器过载效果加成
+        ab_bonus = None
+        mwd_bonus = None
+        
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if '加力燃烧器过载效果加成' in bonus_text:
+                ab_bonus = bonus_dict
+            elif '微型跃迁推进器过载效果加成' in bonus_text:
+                mwd_bonus = bonus_dict
+        
+        # 检查是否两者都存在
+        if not (ab_bonus and mwd_bonus):
+            return bonuses, None
+        
+        # 提取数值
+        import re
+        ab_match = re.search(r'(\d+\.?\d*)%', ab_bonus['text'])
+        mwd_match = re.search(r'(\d+\.?\d*)%', mwd_bonus['text'])
+        
+        if not (ab_match and mwd_match):
+            return bonuses, None
+        
+        ab_value = ab_match.group(1)
+        mwd_value = mwd_match.group(1)
+        
+        # 检查数值是否相等
+        if ab_value != mwd_value:
+            return bonuses, None
+        
+        # 构建合并后的加力燃烧器和微型跃迁推进器过载效果加成信息
+        merged_bonus = {
+            'text': f"{ab_value}% 加力燃烧器和微型跃迁推进器过载效果加成",
+            'value': ab_value,
+            'bonuses': [ab_bonus, mwd_bonus]
+        }
+        
+        # 构建新的 bonuses 列表，移除2条单独的效果加成
+        new_bonuses = []
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if ('加力燃烧器过载效果加成' in bonus_text or 
+                '微型跃迁推进器过载效果加成' in bonus_text):
+                continue
+            new_bonuses.append(bonus_dict)
+        
+        return new_bonuses, merged_bonus
+    
+    def _merge_interdiction_nullifier_bonuses(self, bonuses):
+        """合并拦截失效装置三个加成：当重启延迟、最大锁定范围、扫描分辨率同时存在且数值相等时，合并为一条
+        
+        返回: (new_bonuses, merged_bonus)
+        merged_bonus 为 None 表示没有合并，否则包含合并后的信息
+        """
+        # 查找三个拦截失效装置加成
+        delay_bonus = None
+        range_bonus = None
+        scan_bonus = None
+        
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if '拦截失效装置重启延迟' in bonus_text:
+                delay_bonus = bonus_dict
+            elif '拦截失效装置最大锁定范围' in bonus_text:
+                range_bonus = bonus_dict
+            elif '拦截失效装置扫描分辨率' in bonus_text:
+                scan_bonus = bonus_dict
+        
+        # 检查是否三者都存在
+        if not (delay_bonus and range_bonus and scan_bonus):
+            return bonuses, None
+        
+        # 提取数值
+        import re
+        delay_match = re.search(r'(\d+\.?\d*)%', delay_bonus['text'])
+        range_match = re.search(r'(\d+\.?\d*)%', range_bonus['text'])
+        scan_match = re.search(r'(\d+\.?\d*)%', scan_bonus['text'])
+        
+        if not (delay_match and range_match and scan_match):
+            return bonuses, None
+        
+        delay_value = delay_match.group(1)
+        range_value = range_match.group(1)
+        scan_value = scan_match.group(1)
+        
+        # 检查数值是否相等
+        if not (delay_value == range_value == scan_value):
+            return bonuses, None
+        
+        # 构建合并后的拦截失效装置加成信息
+        merged_bonus = {
+            'text': f"{delay_value}% 拦截失效装置重启延迟、最大锁定距离惩罚和扫描分辨率惩罚降低",
+            'value': delay_value,
+            'bonuses': [delay_bonus, range_bonus, scan_bonus]
+        }
+        
+        # 构建新的 bonuses 列表，移除3条单独的效果加成
+        new_bonuses = []
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if ('拦截失效装置重启延迟' in bonus_text or 
+                '拦截失效装置最大锁定范围' in bonus_text or
+                '拦截失效装置扫描分辨率' in bonus_text):
+                continue
+            new_bonuses.append(bonus_dict)
+        
+        return new_bonuses, merged_bonus
+    
+    def _merge_light_missile_damage_bonuses(self, bonuses):
+        """合并轻型导弹和火箭四种伤害加成：当爆炸、动能、热能、电磁伤害加成同时存在且数值相等时，合并为一条
+        
+        返回: (new_bonuses, merged_bonus)
+        merged_bonus 为 None 表示没有合并，否则包含合并后的信息
+        """
+        # 查找四种轻型导弹和火箭伤害加成
+        explosive_bonus = None
+        kinetic_bonus = None
+        thermal_bonus = None
+        em_bonus = None
+        
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if '轻型导弹和火箭爆炸伤害加成' in bonus_text:
+                explosive_bonus = bonus_dict
+            elif '轻型导弹和火箭动能伤害加成' in bonus_text:
+                kinetic_bonus = bonus_dict
+            elif '轻型导弹和火箭热能伤害加成' in bonus_text:
+                thermal_bonus = bonus_dict
+            elif '轻型导弹和火箭电磁伤害加成' in bonus_text:
+                em_bonus = bonus_dict
+        
+        # 检查是否四者都存在
+        if not (explosive_bonus and kinetic_bonus and thermal_bonus and em_bonus):
+            return bonuses, None
+        
+        # 提取数值
+        import re
+        explosive_match = re.search(r'(\d+\.?\d*)%', explosive_bonus['text'])
+        kinetic_match = re.search(r'(\d+\.?\d*)%', kinetic_bonus['text'])
+        thermal_match = re.search(r'(\d+\.?\d*)%', thermal_bonus['text'])
+        em_match = re.search(r'(\d+\.?\d*)%', em_bonus['text'])
+        
+        if not (explosive_match and kinetic_match and thermal_match and em_match):
+            return bonuses, None
+        
+        explosive_value = explosive_match.group(1)
+        kinetic_value = kinetic_match.group(1)
+        thermal_value = thermal_match.group(1)
+        em_value = em_match.group(1)
+        
+        # 检查数值是否相等
+        if not (explosive_value == kinetic_value == thermal_value == em_value):
+            return bonuses, None
+        
+        # 构建合并后的轻型导弹和火箭伤害加成信息
+        merged_bonus = {
+            'text': f"{explosive_value}% 轻型导弹和火箭伤害加成",
+            'value': explosive_value,
+            'bonuses': [explosive_bonus, kinetic_bonus, thermal_bonus, em_bonus]
+        }
+        
+        # 构建新的 bonuses 列表，移除4条单独的效果加成
+        new_bonuses = []
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if ('轻型导弹和火箭爆炸伤害加成' in bonus_text or 
+                '轻型导弹和火箭动能伤害加成' in bonus_text or
+                '轻型导弹和火箭热能伤害加成' in bonus_text or
+                '轻型导弹和火箭电磁伤害加成' in bonus_text):
+                continue
+            new_bonuses.append(bonus_dict)
+        
+        return new_bonuses, merged_bonus
+    
+    def _merge_neutralizer_range_bonuses(self, bonuses):
+        """合并能量中和器和掠能器最佳射程加成：当两者同时存在且数值相等时，合并为一条
+        
+        返回: (new_bonuses, merged_bonus)
+        merged_bonus 为 None 表示没有合并，否则包含合并后的信息
+        """
+        # 查找能量中和器和掠能器最佳射程加成
+        neutralizer_bonus = None
+        nosferatu_bonus = None
+        
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if '能量中和器最佳射程加成' in bonus_text:
+                neutralizer_bonus = bonus_dict
+            elif '掠能器最佳射程加成' in bonus_text:
+                nosferatu_bonus = bonus_dict
+        
+        # 检查是否两者都存在
+        if not (neutralizer_bonus and nosferatu_bonus):
+            return bonuses, None
+        
+        # 提取数值
+        import re
+        neutralizer_match = re.search(r'(\d+\.?\d*)%', neutralizer_bonus['text'])
+        nosferatu_match = re.search(r'(\d+\.?\d*)%', nosferatu_bonus['text'])
+        
+        if not (neutralizer_match and nosferatu_match):
+            return bonuses, None
+        
+        neutralizer_value = neutralizer_match.group(1)
+        nosferatu_value = nosferatu_match.group(1)
+        
+        # 检查数值是否相等
+        if neutralizer_value != nosferatu_value:
+            return bonuses, None
+        
+        # 构建合并后的掠能器和能量中和器最佳射程加成信息
+        merged_bonus = {
+            'text': f"{neutralizer_value}% 掠能器和能量中和器最佳射程加成",
+            'value': neutralizer_value,
+            'bonuses': [neutralizer_bonus, nosferatu_bonus]
+        }
+        
+        # 构建新的 bonuses 列表，移除2条单独的效果加成
+        new_bonuses = []
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if ('能量中和器最佳射程加成' in bonus_text or 
+                '掠能器最佳射程加成' in bonus_text):
+                continue
+            new_bonuses.append(bonus_dict)
+        
+        return new_bonuses, merged_bonus
+    
+    def _merge_neutralizer_falloff_bonuses(self, bonuses):
+        """合并能量中和器和掠能器失准范围加成：当两者同时存在且数值相等时，合并为一条
+        
+        返回: (new_bonuses, merged_bonus)
+        merged_bonus 为 None 表示没有合并，否则包含合并后的信息
+        """
+        # 查找能量中和器和掠能器失准范围加成
+        neutralizer_bonus = None
+        nosferatu_bonus = None
+        
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if '能量中和器失准范围加成' in bonus_text:
+                neutralizer_bonus = bonus_dict
+            elif '掠能器失准范围加成' in bonus_text:
+                nosferatu_bonus = bonus_dict
+        
+        # 检查是否两者都存在
+        if not (neutralizer_bonus and nosferatu_bonus):
+            return bonuses, None
+        
+        # 提取数值
+        import re
+        neutralizer_match = re.search(r'(\d+\.?\d*)%', neutralizer_bonus['text'])
+        nosferatu_match = re.search(r'(\d+\.?\d*)%', nosferatu_bonus['text'])
+        
+        if not (neutralizer_match and nosferatu_match):
+            return bonuses, None
+        
+        neutralizer_value = neutralizer_match.group(1)
+        nosferatu_value = nosferatu_match.group(1)
+        
+        # 检查数值是否相等
+        if neutralizer_value != nosferatu_value:
+            return bonuses, None
+        
+        # 构建合并后的掠能器和能量中和器失准范围加成信息
+        merged_bonus = {
+            'text': f"{neutralizer_value}% 掠能器和能量中和器失准范围加成",
+            'value': neutralizer_value,
+            'bonuses': [neutralizer_bonus, nosferatu_bonus]
+        }
+        
+        # 构建新的 bonuses 列表，移除2条单独的效果加成
+        new_bonuses = []
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if ('能量中和器失准范围加成' in bonus_text or 
+                '掠能器失准范围加成' in bonus_text):
+                continue
+            new_bonuses.append(bonus_dict)
+        
+        return new_bonuses, merged_bonus
+    
+    def _merge_neutralizer_amount_bonuses(self, bonuses):
+        """合并掠能器和能量中和器吸取量加成：当两者同时存在且数值相等时，合并为一条
+        
+        返回: (new_bonuses, merged_bonus)
+        merged_bonus 为 None 表示没有合并，否则包含合并后的信息
+        """
+        # 查找掠能器和能量中和器吸取量加成
+        nosferatu_bonus = None
+        neutralizer_bonus = None
+        
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if '掠能器吸取量加成' in bonus_text:
+                nosferatu_bonus = bonus_dict
+            elif '能量中和器吸取量加成' in bonus_text:
+                neutralizer_bonus = bonus_dict
+        
+        # 检查是否两者都存在
+        if not (nosferatu_bonus and neutralizer_bonus):
+            return bonuses, None
+        
+        # 提取数值
+        import re
+        nosferatu_match = re.search(r'(\d+\.?\d*)%', nosferatu_bonus['text'])
+        neutralizer_match = re.search(r'(\d+\.?\d*)%', neutralizer_bonus['text'])
+        
+        if not (nosferatu_match and neutralizer_match):
+            return bonuses, None
+        
+        nosferatu_value = nosferatu_match.group(1)
+        neutralizer_value = neutralizer_match.group(1)
+        
+        # 检查数值是否相等
+        if nosferatu_value != neutralizer_value:
+            return bonuses, None
+        
+        # 构建合并后的掠能器和能量中和器吸取量加成信息
+        merged_bonus = {
+            'text': f"{nosferatu_value}% 掠能器和能量中和器吸取量加成",
+            'value': nosferatu_value,
+            'bonuses': [nosferatu_bonus, neutralizer_bonus]
+        }
+        
+        # 构建新的 bonuses 列表，移除2条单独的效果加成
+        new_bonuses = []
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if ('掠能器吸取量加成' in bonus_text or 
+                '能量中和器吸取量加成' in bonus_text):
+                continue
+            new_bonuses.append(bonus_dict)
+        
+        return new_bonuses, merged_bonus
+    
+    def _merge_nosferatu_range_amount_bonuses(self, bonuses):
+        """合并掠能器有效距离和吸取量加成：当两者同时存在且数值相等时，合并为一条
+        
+        二合一：有效距离 + 吸取量
+        
+        返回: (new_bonuses, merged_bonus)
+        merged_bonus 为 None 表示没有合并，否则包含合并后的信息
+        """
+        # 查找掠能器有效距离加成和吸取量加成
+        range_bonus = None
+        amount_bonus = None
+        
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if '掠能器有效距离加成' in bonus_text:
+                range_bonus = bonus_dict
+            elif '掠能器吸取量加成' in bonus_text:
+                amount_bonus = bonus_dict
+        
+        # 检查是否两者都存在
+        if not (range_bonus and amount_bonus):
+            return bonuses, None
+        
+        # 提取数值
+        import re
+        range_match = re.search(r'(\d+\.?\d*)%', range_bonus['text'])
+        amount_match = re.search(r'(\d+\.?\d*)%', amount_bonus['text'])
+        
+        if not (range_match and amount_match):
+            return bonuses, None
+        
+        range_value = range_match.group(1)
+        amount_value = amount_match.group(1)
+        
+        # 检查数值是否相等
+        if range_value != amount_value:
+            return bonuses, None
+        
+        # 构建合并后的掠能器吸取量和有效距离加成信息
+        merged_bonus = {
+            'text': f"{range_value}% 掠能器吸取量和有效距离加成",
+            'value': range_value,
+            'bonuses': [range_bonus, amount_bonus]
+        }
+        
+        # 构建新的 bonuses 列表，移除2条单独的效果加成
+        new_bonuses = []
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if ('掠能器有效距离加成' in bonus_text or 
+                '掠能器吸取量加成' in bonus_text):
+                continue
+            new_bonuses.append(bonus_dict)
+        
+        return new_bonuses, merged_bonus
+    
+    def _merge_remote_armor_repair_bonuses(self, bonuses):
+        """合并远程装甲维修器运转周期和启动消耗：当两者同时存在且数值相等时，合并为一条
+        
+        返回: (new_bonuses, merged_bonus)
+        merged_bonus 为 None 表示没有合并，否则包含合并后的信息
+        """
+        # 查找远程装甲维修器运转周期和启动消耗加成
+        duration_bonus = None
+        cap_bonus = None
+        
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if '远程装甲维修器运转周期减少' in bonus_text:
+                duration_bonus = bonus_dict
+            elif '远程装甲维修器启动消耗减少' in bonus_text:
+                cap_bonus = bonus_dict
+        
+        # 检查是否两者都存在
+        if not (duration_bonus and cap_bonus):
+            return bonuses, None
+        
+        # 提取数值
+        import re
+        duration_match = re.search(r'(\d+\.?\d*)%', duration_bonus['text'])
+        cap_match = re.search(r'(\d+\.?\d*)%', cap_bonus['text'])
+        
+        if not (duration_match and cap_match):
+            return bonuses, None
+        
+        duration_value = duration_match.group(1)
+        cap_value = cap_match.group(1)
+        
+        # 检查数值是否相等
+        if duration_value != cap_value:
+            return bonuses, None
+        
+        # 构建合并后的远程装甲维修器运转周期和启动消耗减少信息
+        merged_bonus = {
+            'text': f"{duration_value}% 远程装甲维修器运转周期和启动消耗减少",
+            'value': duration_value,
+            'bonuses': [duration_bonus, cap_bonus]
+        }
+        
+        # 构建新的 bonuses 列表，移除2条单独的效果加成
+        new_bonuses = []
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if ('远程装甲维修器运转周期减少' in bonus_text or 
+                '远程装甲维修器启动消耗减少' in bonus_text):
+                continue
+            new_bonuses.append(bonus_dict)
+        
+        return new_bonuses, merged_bonus
+    
+    def _merge_drone_damage_hp_bonuses(self, bonuses):
+        """合并无人机伤害和HP加成：当伤害加成、装甲值、结构值、护盾容量同时存在且数值相等时，合并为一条
+        
+        优先级：
+        1. 五合一：伤害 + HP + 采矿量
+        2. 四合一：伤害 + HP
+        3. 四合一：跟踪速度 + HP
+        4. 三合一：HP（装甲+结构+护盾）
+        
+        返回: (new_bonuses, merged_bonus)
+        merged_bonus 为 None 表示没有合并，否则包含合并后的信息
+        """
+        # 查找六种无人机加成
+        damage_bonus = None
+        armor_bonus = None
+        hull_bonus = None
+        shield_bonus = None
+        mining_bonus = None
+        tracking_bonus = None
+        
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if '无人机伤害加成' in bonus_text:
+                damage_bonus = bonus_dict
+            elif '无人机装甲值加成' in bonus_text:
+                armor_bonus = bonus_dict
+            elif '无人机结构值加成' in bonus_text:
+                hull_bonus = bonus_dict
+            elif '无人机护盾容量加成' in bonus_text:
+                shield_bonus = bonus_dict
+            elif '无人机采矿量加成' in bonus_text:
+                mining_bonus = bonus_dict
+            elif '无人机跟踪速度加成' in bonus_text:
+                tracking_bonus = bonus_dict
+        
+        # 检查HP三项（装甲+结构+护盾）是否都存在
+        hp_bonuses_exist = armor_bonus and hull_bonus and shield_bonus
+        if not hp_bonuses_exist:
+            return bonuses, None
+        
+        # 提取数值
+        import re
+        armor_match = re.search(r'(\d+\.?\d*)%', armor_bonus['text'])
+        hull_match = re.search(r'(\d+\.?\d*)%', hull_bonus['text'])
+        shield_match = re.search(r'(\d+\.?\d*)%', shield_bonus['text'])
+        
+        if not (armor_match and hull_match and shield_match):
+            return bonuses, None
+        
+        armor_value = armor_match.group(1)
+        hull_value = hull_match.group(1)
+        shield_value = shield_match.group(1)
+        
+        # 检查HP三项数值是否相等
+        if not (armor_value == hull_value == shield_value):
+            return bonuses, None
+        
+        # 判断合并类型
+        damage_match = damage_bonus and re.search(r'(\d+\.?\d*)%', damage_bonus['text'])
+        mining_match = mining_bonus and re.search(r'(\d+\.?\d*)%', mining_bonus['text'])
+        tracking_match = tracking_bonus and re.search(r'(\d+\.?\d*)%', tracking_bonus['text'])
+        
+        damage_value = damage_match.group(1) if damage_match else None
+        mining_value = mining_match.group(1) if mining_match else None
+        tracking_value = tracking_match.group(1) if tracking_match else None
+        
+        # 五合一：伤害+HP+采矿量
+        if damage_bonus and mining_bonus and damage_value == armor_value and mining_value == armor_value:
+            merged_bonus = {
+                'text': f"{armor_value}% 无人机伤害、HP和采矿量加成",
+                'value': armor_value,
+                'bonuses': [damage_bonus, armor_bonus, hull_bonus, shield_bonus, mining_bonus]
+            }
+            # 构建新的 bonuses 列表，移除5条单独的效果加成
+            new_bonuses = []
+            for bonus_dict in bonuses:
+                bonus_text = bonus_dict.get('text', '')
+                if ('无人机伤害加成' in bonus_text or 
+                    '无人机装甲值加成' in bonus_text or
+                    '无人机结构值加成' in bonus_text or
+                    '无人机护盾容量加成' in bonus_text or
+                    '无人机采矿量加成' in bonus_text):
+                    continue
+                new_bonuses.append(bonus_dict)
+            return new_bonuses, merged_bonus
+        
+        # 四合一：伤害+HP
+        if damage_bonus and damage_value == armor_value:
+            merged_bonus = {
+                'text': f"{armor_value}% 无人机伤害和HP加成",
+                'value': armor_value,
+                'bonuses': [damage_bonus, armor_bonus, hull_bonus, shield_bonus]
+            }
+            # 构建新的 bonuses 列表，移除4条单独的效果加成
+            new_bonuses = []
+            for bonus_dict in bonuses:
+                bonus_text = bonus_dict.get('text', '')
+                if ('无人机伤害加成' in bonus_text or 
+                    '无人机装甲值加成' in bonus_text or
+                    '无人机结构值加成' in bonus_text or
+                    '无人机护盾容量加成' in bonus_text):
+                    continue
+                new_bonuses.append(bonus_dict)
+            return new_bonuses, merged_bonus
+        
+        # 四合一：跟踪速度+HP
+        if tracking_bonus and tracking_value == armor_value:
+            merged_bonus = {
+                'text': f"{armor_value}% 无人机HP和跟踪速度加成",
+                'value': armor_value,
+                'bonuses': [tracking_bonus, armor_bonus, hull_bonus, shield_bonus]
+            }
+            # 构建新的 bonuses 列表，移除4条单独的效果加成
+            new_bonuses = []
+            for bonus_dict in bonuses:
+                bonus_text = bonus_dict.get('text', '')
+                if ('无人机跟踪速度加成' in bonus_text or 
+                    '无人机装甲值加成' in bonus_text or
+                    '无人机结构值加成' in bonus_text or
+                    '无人机护盾容量加成' in bonus_text):
+                    continue
+                new_bonuses.append(bonus_dict)
+            return new_bonuses, merged_bonus
+        
+        # 三合一：HP（装甲+结构+护盾）
+        merged_bonus = {
+            'text': f"{armor_value}% 无人机HP加成",
+            'value': armor_value,
+            'bonuses': [armor_bonus, hull_bonus, shield_bonus]
+        }
+        
+        # 构建新的 bonuses 列表，移除3条单独的效果加成
+        new_bonuses = []
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if ('无人机装甲值加成' in bonus_text or
+                '无人机结构值加成' in bonus_text or
+                '无人机护盾容量加成' in bonus_text):
+                continue
+            new_bonuses.append(bonus_dict)
+        
+        return new_bonuses, merged_bonus
+    
+    def _merge_small_energy_turret_range_bonuses(self, bonuses):
+        """合并小型能量炮台最佳射程和失准范围加成：当两者同时存在且数值相等时，合并为一条
+        
+        二合一：最佳射程 + 失准范围
+        
+        返回: (new_bonuses, merged_bonus)
+        merged_bonus 为 None 表示没有合并，否则包含合并后的信息
+        """
+        # 查找小型能量炮台最佳射程和失准范围加成
+        optimal_bonus = None
+        falloff_bonus = None
+        
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if '小型能量炮台最佳射程加成' in bonus_text:
+                optimal_bonus = bonus_dict
+            elif '小型能量炮台失准范围加成' in bonus_text:
+                falloff_bonus = bonus_dict
+        
+        # 检查是否两者都存在
+        if not (optimal_bonus and falloff_bonus):
+            return bonuses, None
+        
+        # 提取数值
+        import re
+        optimal_match = re.search(r'(\d+\.?\d*)%', optimal_bonus['text'])
+        falloff_match = re.search(r'(\d+\.?\d*)%', falloff_bonus['text'])
+        
+        if not (optimal_match and falloff_match):
+            return bonuses, None
+        
+        optimal_value = optimal_match.group(1)
+        falloff_value = falloff_match.group(1)
+        
+        # 检查数值是否相等
+        if optimal_value != falloff_value:
+            return bonuses, None
+        
+        # 构建合并后的小型能量炮台最佳射程和失准范围加成信息
+        # 注意：数值和文字间有一个空格
+        merged_bonus = {
+            'text': f"{optimal_value}% 小型能量炮台最佳射程和失准范围加成",
+            'value': optimal_value,
+            'bonuses': [optimal_bonus, falloff_bonus]
+        }
+        
+        # 构建新的 bonuses 列表，移除2条单独的效果加成
+        new_bonuses = []
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if ('小型能量炮台最佳射程加成' in bonus_text or 
+                '小型能量炮台失准范围加成' in bonus_text):
+                continue
+            new_bonuses.append(bonus_dict)
+        
+        return new_bonuses, merged_bonus
+    
+    def _merge_medium_energy_turret_range_bonuses(self, bonuses):
+        """合并中型能量炮台最佳射程和失准范围加成：当两者同时存在且数值相等时，合并为一条
+        
+        二合一：最佳射程 + 失准范围
+        
+        返回: (new_bonuses, merged_bonus)
+        merged_bonus 为 None 表示没有合并，否则包含合并后的信息
+        """
+        # 查找中型能量炮台最佳射程和失准范围加成
+        optimal_bonus = None
+        falloff_bonus = None
+        
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if '中型能量炮台最佳射程加成' in bonus_text:
+                optimal_bonus = bonus_dict
+            elif '中型能量炮台失准范围加成' in bonus_text:
+                falloff_bonus = bonus_dict
+        
+        # 检查是否两者都存在
+        if not (optimal_bonus and falloff_bonus):
+            return bonuses, None
+        
+        # 提取数值
+        import re
+        optimal_match = re.search(r'(\d+\.?\d*)%', optimal_bonus['text'])
+        falloff_match = re.search(r'(\d+\.?\d*)%', falloff_bonus['text'])
+        
+        if not (optimal_match and falloff_match):
+            return bonuses, None
+        
+        optimal_value = optimal_match.group(1)
+        falloff_value = falloff_match.group(1)
+        
+        # 检查数值是否相等
+        if optimal_value != falloff_value:
+            return bonuses, None
+        
+        # 构建合并后的中型能量炮台最佳射程和失准范围加成信息
+        # 注意：数值和文字间有一个空格
+        merged_bonus = {
+            'text': f"{optimal_value}% 中型能量炮台最佳射程和失准范围加成",
+            'value': optimal_value,
+            'bonuses': [optimal_bonus, falloff_bonus]
+        }
+        
+        # 构建新的 bonuses 列表，移除2条单独的效果加成
+        new_bonuses = []
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if ('中型能量炮台最佳射程加成' in bonus_text or 
+                '中型能量炮台失准范围加成' in bonus_text):
+                continue
+            new_bonuses.append(bonus_dict)
+        
+        return new_bonuses, merged_bonus
+    
+    def _merge_weapon_damage_bonuses(self, bonuses):
+        """合并武器伤害加成：鱼雷、巡航导弹、重型快速导弹、大型能量炮台、重型导弹、重型攻击导弹、火箭、超大型巡航导弹、超大型鱼雷
+        
+        优先级：
+        1. 十三合一：鱼雷4种 + 巡航导弹4种 + 重型快速导弹4种 + 大型能量炮台
+        2. 八合一：重型导弹4种 + 重型攻击导弹4种
+        3. 十二合一：超大型巡航导弹4种 + 超大型鱼雷4种 + 鱼雷4种
+        4. 鱼雷四合一：电磁 + 热能 + 动能 + 爆炸
+        5. 巡航导弹四合一
+        6. 重型快速导弹四合一
+        7. 重型攻击导弹四合一
+        8. 重型导弹四合一
+        9. 火箭四合一：电磁 + 热能 + 动能 + 爆炸
+        10. 火箭三合一：电磁 + 动能 + 热能
+        
+        返回: (new_bonuses, merged_bonus, merged_torpedo, merged_cruise, merged_rapid, 
+               merged_heavy_assault_heavy, merged_heavy_assault, merged_heavy, merged_rocket, merged_rocket_partial,
+               merged_xl_cruise_torpedo)
+        """
+        import re
+        
+        # 查找所有武器伤害加成
+        torpedo_em = torpedo_therm = torpedo_kin = torpedo_exp = None
+        cruise_em = cruise_therm = cruise_kin = cruise_exp = None
+        rapid_em = rapid_therm = rapid_kin = rapid_exp = None
+        large_energy = None
+        # 重型导弹和重型攻击导弹
+        heavy_em = heavy_therm = heavy_kin = heavy_exp = None
+        heavy_assault_em = heavy_assault_therm = heavy_assault_kin = heavy_assault_exp = None
+        # 火箭
+        rocket_em = rocket_therm = rocket_kin = rocket_exp = None
+        # 超大型巡航导弹和超大型鱼雷
+        xl_cruise_em = xl_cruise_therm = xl_cruise_kin = xl_cruise_exp = None
+        xl_torpedo_em = xl_torpedo_therm = xl_torpedo_kin = xl_torpedo_exp = None
+        # 破坏型长枪
+        lance_em = lance_therm = lance_kin = lance_exp = None
+        
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            # 超大型巡航导弹、超大型鱼雷和鱼雷合并格式（如灾祸级）- 必须优先检测
+            if '超大型巡航导弹、超大型鱼雷和鱼雷电磁伤害加成' in bonus_text:
+                xl_cruise_em = xl_torpedo_em = torpedo_em = bonus_dict
+            elif '超大型巡航导弹、超大型鱼雷和鱼雷热能伤害加成' in bonus_text:
+                xl_cruise_therm = xl_torpedo_therm = torpedo_therm = bonus_dict
+            elif '超大型巡航导弹、超大型鱼雷和鱼雷动能伤害加成' in bonus_text:
+                xl_cruise_kin = xl_torpedo_kin = torpedo_kin = bonus_dict
+            elif '超大型巡航导弹、超大型鱼雷和鱼雷爆炸伤害加成' in bonus_text:
+                xl_cruise_exp = xl_torpedo_exp = torpedo_exp = bonus_dict
+            # 鱼雷（单独格式，注意：不能匹配合并格式）
+            elif '鱼雷电磁伤害加成' in bonus_text and '超大型' not in bonus_text:
+                torpedo_em = bonus_dict
+            elif '鱼雷热能伤害加成' in bonus_text and '超大型' not in bonus_text:
+                torpedo_therm = bonus_dict
+            elif '鱼雷动能伤害加成' in bonus_text and '超大型' not in bonus_text:
+                torpedo_kin = bonus_dict
+            elif '鱼雷爆炸伤害加成' in bonus_text and '超大型' not in bonus_text:
+                torpedo_exp = bonus_dict
+            # 巡航导弹
+            elif '巡航导弹电磁伤害加成' in bonus_text:
+                cruise_em = bonus_dict
+            elif '巡航导弹热能伤害加成' in bonus_text:
+                cruise_therm = bonus_dict
+            elif '巡航导弹动能伤害加成' in bonus_text:
+                cruise_kin = bonus_dict
+            elif '巡航导弹爆炸伤害加成' in bonus_text:
+                cruise_exp = bonus_dict
+            # 重型快速导弹
+            elif '重型快速导弹电磁伤害加成' in bonus_text:
+                rapid_em = bonus_dict
+            elif '重型快速导弹热能伤害加成' in bonus_text:
+                rapid_therm = bonus_dict
+            elif '重型快速导弹动能伤害加成' in bonus_text:
+                rapid_kin = bonus_dict
+            elif '重型快速导弹爆炸伤害加成' in bonus_text:
+                rapid_exp = bonus_dict
+            # 大型能量炮台
+            elif '大型能量炮台伤害加成' in bonus_text:
+                large_energy = bonus_dict
+            # 重型导弹
+            elif '重型导弹电磁伤害加成' in bonus_text:
+                heavy_em = bonus_dict
+            elif '重型导弹热能伤害加成' in bonus_text:
+                heavy_therm = bonus_dict
+            elif '重型导弹动能伤害加成' in bonus_text:
+                heavy_kin = bonus_dict
+            elif '重型导弹爆炸伤害加成' in bonus_text:
+                heavy_exp = bonus_dict
+            # 重型攻击导弹
+            elif '重型攻击导弹电磁伤害加成' in bonus_text:
+                heavy_assault_em = bonus_dict
+            elif '重型攻击导弹热能伤害加成' in bonus_text:
+                heavy_assault_therm = bonus_dict
+            elif '重型攻击导弹动能伤害加成' in bonus_text:
+                heavy_assault_kin = bonus_dict
+            elif '重型攻击导弹爆炸伤害加成' in bonus_text:
+                heavy_assault_exp = bonus_dict
+            # 火箭
+            elif '火箭电磁伤害加成' in bonus_text:
+                rocket_em = bonus_dict
+            elif '火箭热能伤害加成' in bonus_text:
+                rocket_therm = bonus_dict
+            elif '火箭动能伤害加成' in bonus_text:
+                rocket_kin = bonus_dict
+            elif '火箭爆炸伤害加成' in bonus_text:
+                rocket_exp = bonus_dict
+            # 超大型巡航导弹（单独格式）
+            elif '超大型巡航导弹电磁伤害加成' in bonus_text and '超大型鱼雷' not in bonus_text:
+                xl_cruise_em = bonus_dict
+            elif '超大型巡航导弹热能伤害加成' in bonus_text and '超大型鱼雷' not in bonus_text:
+                xl_cruise_therm = bonus_dict
+            elif '超大型巡航导弹动能伤害加成' in bonus_text and '超大型鱼雷' not in bonus_text:
+                xl_cruise_kin = bonus_dict
+            elif '超大型巡航导弹爆炸伤害加成' in bonus_text and '超大型鱼雷' not in bonus_text:
+                xl_cruise_exp = bonus_dict
+            # 超大型鱼雷（单独格式）
+            elif '超大型鱼雷电磁伤害加成' in bonus_text and '超大型巡航导弹' not in bonus_text:
+                xl_torpedo_em = bonus_dict
+            elif '超大型鱼雷热能伤害加成' in bonus_text and '超大型巡航导弹' not in bonus_text:
+                xl_torpedo_therm = bonus_dict
+            elif '超大型鱼雷动能伤害加成' in bonus_text and '超大型巡航导弹' not in bonus_text:
+                xl_torpedo_kin = bonus_dict
+            elif '超大型鱼雷爆炸伤害加成' in bonus_text and '超大型巡航导弹' not in bonus_text:
+                xl_torpedo_exp = bonus_dict
+            # 破坏型长枪
+            elif '破坏型长枪电磁伤害加成' in bonus_text:
+                lance_em = bonus_dict
+            elif '破坏型长枪热能伤害加成' in bonus_text:
+                lance_therm = bonus_dict
+            elif '破坏型长枪动能伤害加成' in bonus_text:
+                lance_kin = bonus_dict
+            elif '破坏型长枪爆炸伤害加成' in bonus_text:
+                lance_exp = bonus_dict
+        
+        # 检查各组是否完整
+        torpedo_complete = all([torpedo_em, torpedo_therm, torpedo_kin, torpedo_exp])
+        cruise_complete = all([cruise_em, cruise_therm, cruise_kin, cruise_exp])
+        rapid_complete = all([rapid_em, rapid_therm, rapid_kin, rapid_exp])
+        heavy_complete = all([heavy_em, heavy_therm, heavy_kin, heavy_exp])
+        heavy_assault_complete = all([heavy_assault_em, heavy_assault_therm, heavy_assault_kin, heavy_assault_exp])
+        rocket_complete = all([rocket_em, rocket_therm, rocket_kin, rocket_exp])
+        lance_complete = all([lance_em, lance_therm, lance_kin, lance_exp])
+        rocket_partial_complete = all([rocket_em, rocket_kin, rocket_therm])  # 电磁+动能+热能
+        xl_cruise_complete = all([xl_cruise_em, xl_cruise_therm, xl_cruise_kin, xl_cruise_exp])
+        xl_torpedo_complete = all([xl_torpedo_em, xl_torpedo_therm, xl_torpedo_kin, xl_torpedo_exp])
+        
+        def extract_value(bonus_dict):
+            if not bonus_dict:
+                return None
+            match = re.search(r'(\d+\.?\d*)%', bonus_dict['text'])
+            return match.group(1) if match else None
+        
+        # 十三合一：所有武器类型
+        if torpedo_complete and cruise_complete and rapid_complete and large_energy:
+            values = [extract_value(b) for b in [torpedo_em, torpedo_therm, torpedo_kin, torpedo_exp,
+                                                  cruise_em, cruise_therm, cruise_kin, cruise_exp,
+                                                  rapid_em, rapid_therm, rapid_kin, rapid_exp, large_energy]]
+            if all(v == values[0] for v in values):
+                merged_bonus = {
+                    'text': f"{values[0]}% 大型能量炮台、重型快速导弹、巡航导弹和鱼雷伤害加成",
+                    'value': values[0],
+                    'bonuses': [large_energy, rapid_em, rapid_therm, rapid_kin, rapid_exp,
+                               cruise_em, cruise_therm, cruise_kin, cruise_exp,
+                               torpedo_em, torpedo_therm, torpedo_kin, torpedo_exp]
+                }
+                new_bonuses = []
+                for bonus_dict in bonuses:
+                    bonus_text = bonus_dict.get('text', '')
+                    if ('鱼雷电磁伤害加成' in bonus_text or '鱼雷热能伤害加成' in bonus_text or
+                        '鱼雷动能伤害加成' in bonus_text or '鱼雷爆炸伤害加成' in bonus_text or
+                        '巡航导弹电磁伤害加成' in bonus_text or '巡航导弹热能伤害加成' in bonus_text or
+                        '巡航导弹动能伤害加成' in bonus_text or '巡航导弹爆炸伤害加成' in bonus_text or
+                        '重型快速导弹电磁伤害加成' in bonus_text or '重型快速导弹热能伤害加成' in bonus_text or
+                        '重型快速导弹动能伤害加成' in bonus_text or '重型快速导弹爆炸伤害加成' in bonus_text or
+                        '大型能量炮台伤害加成' in bonus_text):
+                        continue
+                    new_bonuses.append(bonus_dict)
+                return new_bonuses, merged_bonus, None, None, None, None, None, None, None, None, None, None
+        
+        # 八合一：重型导弹4种 + 重型攻击导弹4种
+        merged_heavy_assault_heavy = None
+        merged_heavy_assault = None
+        merged_heavy = None
+        if heavy_complete and heavy_assault_complete:
+            values = [extract_value(b) for b in [heavy_em, heavy_therm, heavy_kin, heavy_exp,
+                                                  heavy_assault_em, heavy_assault_therm, heavy_assault_kin, heavy_assault_exp]]
+            if all(v == values[0] for v in values):
+                merged_heavy_assault_heavy = {
+                    'text': f"{values[0]}% 重型导弹和重型攻击导弹伤害加成",
+                    'value': values[0],
+                    'bonuses': [heavy_em, heavy_therm, heavy_kin, heavy_exp,
+                               heavy_assault_em, heavy_assault_therm, heavy_assault_kin, heavy_assault_exp]
+                }
+        
+        # 如果八合一失败，才检查各自的四合一
+        if not merged_heavy_assault_heavy:
+            # 重型攻击导弹四合一
+            if heavy_assault_complete:
+                values = [extract_value(b) for b in [heavy_assault_em, heavy_assault_therm, heavy_assault_kin, heavy_assault_exp]]
+                if all(v == values[0] for v in values):
+                    merged_heavy_assault = {
+                        'text': f"{values[0]}% 重型攻击导弹伤害加成",
+                        'value': values[0],
+                        'bonuses': [heavy_assault_em, heavy_assault_therm, heavy_assault_kin, heavy_assault_exp]
+                    }
+            
+            # 重型导弹四合一
+            if heavy_complete:
+                values = [extract_value(b) for b in [heavy_em, heavy_therm, heavy_kin, heavy_exp]]
+                if all(v == values[0] for v in values):
+                    merged_heavy = {
+                        'text': f"{values[0]}% 重型导弹伤害加成",
+                        'value': values[0],
+                        'bonuses': [heavy_em, heavy_therm, heavy_kin, heavy_exp]
+                    }
+        
+        # 十二合一：超大型巡航导弹4种 + 超大型鱼雷4种 + 鱼雷4种
+        merged_xl_cruise_torpedo = None
+        if xl_cruise_complete and xl_torpedo_complete and torpedo_complete:
+            values = [extract_value(b) for b in [xl_cruise_em, xl_cruise_therm, xl_cruise_kin, xl_cruise_exp,
+                                                  xl_torpedo_em, xl_torpedo_therm, xl_torpedo_kin, xl_torpedo_exp,
+                                                  torpedo_em, torpedo_therm, torpedo_kin, torpedo_exp]]
+            if all(v == values[0] for v in values):
+                merged_xl_cruise_torpedo = {
+                    'text': f"{values[0]}% 超大型巡航导弹、超大型鱼雷和鱼雷伤害加成",
+                    'value': values[0],
+                    'bonuses': [xl_cruise_em, xl_cruise_therm, xl_cruise_kin, xl_cruise_exp,
+                               xl_torpedo_em, xl_torpedo_therm, xl_torpedo_kin, xl_torpedo_exp,
+                               torpedo_em, torpedo_therm, torpedo_kin, torpedo_exp]
+                }
+        
+        # 鱼雷四合一
+        merged_torpedo = None
+        if torpedo_complete and not merged_xl_cruise_torpedo:
+            values = [extract_value(b) for b in [torpedo_em, torpedo_therm, torpedo_kin, torpedo_exp]]
+            if all(v == values[0] for v in values):
+                merged_torpedo = {
+                    'text': f"{values[0]}% 鱼雷伤害加成",
+                    'value': values[0],
+                    'bonuses': [torpedo_em, torpedo_therm, torpedo_kin, torpedo_exp]
+                }
+        
+        # 巡航导弹四合一
+        merged_cruise = None
+        if cruise_complete:
+            values = [extract_value(b) for b in [cruise_em, cruise_therm, cruise_kin, cruise_exp]]
+            if all(v == values[0] for v in values):
+                merged_cruise = {
+                    'text': f"{values[0]}% 巡航导弹伤害加成",
+                    'value': values[0],
+                    'bonuses': [cruise_em, cruise_therm, cruise_kin, cruise_exp]
+                }
+        
+        # 重型快速导弹四合一
+        merged_rapid = None
+        if rapid_complete:
+            values = [extract_value(b) for b in [rapid_em, rapid_therm, rapid_kin, rapid_exp]]
+            if all(v == values[0] for v in values):
+                merged_rapid = {
+                    'text': f"{values[0]}% 重型快速导弹伤害加成",
+                    'value': values[0],
+                    'bonuses': [rapid_em, rapid_therm, rapid_kin, rapid_exp]
+                }
+        
+        # 火箭四合一
+        merged_rocket = None
+        merged_rocket_partial = None
+        if rocket_complete:
+            values = [extract_value(b) for b in [rocket_em, rocket_therm, rocket_kin, rocket_exp]]
+            if all(v == values[0] for v in values):
+                merged_rocket = {
+                    'text': f"{values[0]}% 火箭伤害加成",
+                    'value': values[0],
+                    'bonuses': [rocket_em, rocket_therm, rocket_kin, rocket_exp]
+                }
+        
+        # 如果火箭四合一失败，检查火箭三合一（电磁+动能+热能）
+        if not merged_rocket and rocket_partial_complete:
+            values = [extract_value(b) for b in [rocket_em, rocket_kin, rocket_therm]]
+            if all(v == values[0] for v in values):
+                merged_rocket_partial = {
+                    'text': f"{values[0]}% 火箭电磁、动能、热能伤害加成",
+                    'value': values[0],
+                    'bonuses': [rocket_em, rocket_kin, rocket_therm]
+                }
+        
+        # 破坏型长枪四合一
+        merged_lance = None
+        if lance_complete:
+            values = [extract_value(b) for b in [lance_em, lance_therm, lance_kin, lance_exp]]
+            if all(v == values[0] for v in values):
+                merged_lance = {
+                    'text': f"{values[0]}% 破坏型长枪伤害加成",
+                    'value': values[0],
+                    'bonuses': [lance_em, lance_therm, lance_kin, lance_exp]
+                }
+        
+        # 构建新的 bonuses 列表
+        new_bonuses = []
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            should_remove = False
+            # 检查是否在合并的列表中
+            if merged_torpedo and any(b and bonus_dict == b for b in [torpedo_em, torpedo_therm, torpedo_kin, torpedo_exp]):
+                should_remove = True
+            if merged_cruise and any(b and bonus_dict == b for b in [cruise_em, cruise_therm, cruise_kin, cruise_exp]):
+                should_remove = True
+            if merged_rapid and any(b and bonus_dict == b for b in [rapid_em, rapid_therm, rapid_kin, rapid_exp]):
+                should_remove = True
+            if merged_heavy_assault_heavy and any(b and bonus_dict == b for b in [heavy_em, heavy_therm, heavy_kin, heavy_exp, heavy_assault_em, heavy_assault_therm, heavy_assault_kin, heavy_assault_exp]):
+                should_remove = True
+            if merged_heavy_assault and any(b and bonus_dict == b for b in [heavy_assault_em, heavy_assault_therm, heavy_assault_kin, heavy_assault_exp]):
+                should_remove = True
+            if merged_heavy and any(b and bonus_dict == b for b in [heavy_em, heavy_therm, heavy_kin, heavy_exp]):
+                should_remove = True
+            if merged_rocket and any(b and bonus_dict == b for b in [rocket_em, rocket_therm, rocket_kin, rocket_exp]):
+                should_remove = True
+            if merged_rocket_partial and any(b and bonus_dict == b for b in [rocket_em, rocket_kin, rocket_therm]):
+                should_remove = True
+            if merged_xl_cruise_torpedo and any(b and bonus_dict == b for b in [xl_cruise_em, xl_cruise_therm, xl_cruise_kin, xl_cruise_exp, xl_torpedo_em, xl_torpedo_therm, xl_torpedo_kin, xl_torpedo_exp, torpedo_em, torpedo_therm, torpedo_kin, torpedo_exp]):
+                should_remove = True
+            if merged_lance and any(b and bonus_dict == b for b in [lance_em, lance_therm, lance_kin, lance_exp]):
+                should_remove = True
+            if should_remove:
+                continue
+            new_bonuses.append(bonus_dict)
+        
+        return new_bonuses, None, merged_torpedo, merged_cruise, merged_rapid, merged_heavy_assault_heavy, merged_heavy_assault, merged_heavy, merged_rocket, merged_rocket_partial, merged_xl_cruise_torpedo, merged_lance
+    
+    def _merge_missile_velocity_bonuses(self, bonuses):
+        """合并导弹最大速度加成：当重型导弹最大速度加成和重型攻击导弹最大速度加成同时存在且数值相等时，合并为一条
+        
+        二合一：重型导弹最大速度 + 重型攻击导弹最大速度
+        
+        返回: (new_bonuses, merged_bonus)
+        merged_bonus 为 None 表示没有合并，否则包含合并后的信息
+        """
+        # 查找重型导弹最大速度加成和重型攻击导弹最大速度加成
+        heavy_velocity_bonus = None
+        heavy_assault_velocity_bonus = None
+        
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if '重型导弹最大速度加成' in bonus_text:
+                heavy_velocity_bonus = bonus_dict
+            elif '重型攻击导弹最大速度加成' in bonus_text:
+                heavy_assault_velocity_bonus = bonus_dict
+        
+        # 检查是否两者都存在
+        if not (heavy_velocity_bonus and heavy_assault_velocity_bonus):
+            return bonuses, None
+        
+        # 提取数值
+        import re
+        heavy_match = re.search(r'(\d+\.?\d*)%', heavy_velocity_bonus['text'])
+        heavy_assault_match = re.search(r'(\d+\.?\d*)%', heavy_assault_velocity_bonus['text'])
+        
+        if not (heavy_match and heavy_assault_match):
+            return bonuses, None
+        
+        heavy_value = heavy_match.group(1)
+        heavy_assault_value = heavy_assault_match.group(1)
+        
+        # 检查数值是否相等
+        if heavy_value != heavy_assault_value:
+            return bonuses, None
+        
+        # 构建合并后的导弹最大速度加成信息
+        merged_bonus = {
+            'text': f"{heavy_value}% 重型导弹和重型攻击导弹最大速度加成",
+            'value': heavy_value,
+            'bonuses': [heavy_velocity_bonus, heavy_assault_velocity_bonus]
+        }
+        
+        # 构建新的 bonuses 列表，移除2条单独的效果加成
+        new_bonuses = []
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if ('重型导弹最大速度加成' in bonus_text or 
+                '重型攻击导弹最大速度加成' in bonus_text):
+                continue
+            new_bonuses.append(bonus_dict)
+        
+        return new_bonuses, merged_bonus
+    
+    def _merge_remote_armor_repair_range_bonuses(self, bonuses):
+        """合并远程装甲维修器最佳射程和失准范围加成：当两者同时存在且数值相等时，合并为一条
+        
+        二合一：最佳射程 + 失准范围
+        
+        返回: (new_bonuses, merged_bonus)
+        merged_bonus 为 None 表示没有合并，否则包含合并后的信息
+        """
+        # 查找远程装甲维修器最佳射程和失准范围加成
+        optimal_bonus = None
+        falloff_bonus = None
+        
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if '远程装甲维修器最佳射程加成' in bonus_text:
+                optimal_bonus = bonus_dict
+            elif '远程装甲维修器失准范围加成' in bonus_text:
+                falloff_bonus = bonus_dict
+        
+        # 检查是否两者都存在
+        if not (optimal_bonus and falloff_bonus):
+            return bonuses, None
+        
+        # 提取数值
+        import re
+        optimal_match = re.search(r'(\d+\.?\d*)%', optimal_bonus['text'])
+        falloff_match = re.search(r'(\d+\.?\d*)%', falloff_bonus['text'])
+        
+        if not (optimal_match and falloff_match):
+            return bonuses, None
+        
+        optimal_value = optimal_match.group(1)
+        falloff_value = falloff_match.group(1)
+        
+        # 检查数值是否相等
+        if optimal_value != falloff_value:
+            return bonuses, None
+        
+        # 构建合并后的远程装甲维修器最佳射程和失准范围加成信息
+        # 注意：数值和文字间有一个空格
+        merged_bonus = {
+            'text': f"{optimal_value}% 远程装甲维修器最佳射程和失准范围加成",
+            'value': optimal_value,
+            'bonuses': [optimal_bonus, falloff_bonus]
+        }
+        
+        # 构建新的 bonuses 列表，移除2条单独的效果加成
+        new_bonuses = []
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if ('远程装甲维修器最佳射程加成' in bonus_text or 
+                '远程装甲维修器失准范围加成' in bonus_text):
+                continue
+            new_bonuses.append(bonus_dict)
+        
+        return new_bonuses, merged_bonus
+    
+    def _merge_sensor_dampener_bonuses(self, bonuses):
+        """合并远程感应抑阻器效果加成：当最大锁定范围效果加成和扫描分辨率效果加成同时存在且数值相等时，合并为一条
+        
+        二合一：最大锁定范围效果 + 扫描分辨率效果
+        
+        返回: (new_bonuses, merged_bonus)
+        merged_bonus 为 None 表示没有合并，否则包含合并后的信息
+        """
+        # 查找两种远程感应抑阻器效果加成
+        max_range_bonus = None
+        scan_res_bonus = None
+        
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if '远程感应抑阻器最大锁定范围效果加成' in bonus_text:
+                max_range_bonus = bonus_dict
+            elif '远程感应抑阻器扫描分辨率效果加成' in bonus_text:
+                scan_res_bonus = bonus_dict
+        
+        # 检查是否两者都存在
+        if not (max_range_bonus and scan_res_bonus):
+            return bonuses, None
+        
+        # 提取数值
+        import re
+        max_range_match = re.search(r'(\d+\.?\d*)%', max_range_bonus['text'])
+        scan_res_match = re.search(r'(\d+\.?\d*)%', scan_res_bonus['text'])
+        
+        if not (max_range_match and scan_res_match):
+            return bonuses, None
+        
+        max_range_value = max_range_match.group(1)
+        scan_res_value = scan_res_match.group(1)
+        
+        # 检查数值是否相等
+        if max_range_value != scan_res_value:
+            return bonuses, None
+        
+        # 构建合并后的远程感应抑阻器效果加成信息
+        # 注意：数值和文字间有一个空格
+        merged_bonus = {
+            'text': f"{max_range_value}% 远程感应抑阻器效果加成",
+            'value': max_range_value,
+            'bonuses': [max_range_bonus, scan_res_bonus]
+        }
+        
+        # 构建新的 bonuses 列表，移除2条单独的效果加成
+        new_bonuses = []
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if ('远程感应抑阻器最大锁定范围效果加成' in bonus_text or 
+                '远程感应抑阻器扫描分辨率效果加成' in bonus_text):
+                continue
+            new_bonuses.append(bonus_dict)
+        
+        return new_bonuses, merged_bonus
+    
+    def _merge_shield_resistance_bonuses(self, bonuses):
+        """合并护盾抗性加成：当四种护盾抗性加成同时存在且数值相等时，合并为一条
+        
+        四合一：电磁 + 爆炸 + 动能 + 热能
+        
+        返回: (new_bonuses, merged_bonus)
+        merged_bonus 为 None 表示没有合并，否则包含合并后的信息
+        """
+        # 查找四种护盾抗性加成
+        em_bonus = None
+        explosive_bonus = None
+        kinetic_bonus = None
+        thermal_bonus = None
+        
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if '护盾电磁抗性加成' in bonus_text:
+                em_bonus = bonus_dict
+            elif '护盾爆炸抗性加成' in bonus_text:
+                explosive_bonus = bonus_dict
+            elif '护盾动能抗性加成' in bonus_text:
+                kinetic_bonus = bonus_dict
+            elif '护盾热能抗性加成' in bonus_text:
+                thermal_bonus = bonus_dict
+        
+        # 检查是否四者都存在
+        if not (em_bonus and explosive_bonus and kinetic_bonus and thermal_bonus):
+            return bonuses, None
+        
+        # 提取数值
+        import re
+        em_match = re.search(r'(\d+\.?\d*)%', em_bonus['text'])
+        explosive_match = re.search(r'(\d+\.?\d*)%', explosive_bonus['text'])
+        kinetic_match = re.search(r'(\d+\.?\d*)%', kinetic_bonus['text'])
+        thermal_match = re.search(r'(\d+\.?\d*)%', thermal_bonus['text'])
+        
+        if not (em_match and explosive_match and kinetic_match and thermal_match):
+            return bonuses, None
+        
+        em_value = em_match.group(1)
+        explosive_value = explosive_match.group(1)
+        kinetic_value = kinetic_match.group(1)
+        thermal_value = thermal_match.group(1)
+        
+        # 检查数值是否相等
+        if not (em_value == explosive_value == kinetic_value == thermal_value):
+            return bonuses, None
+        
+        # 构建合并后的护盾抗性加成信息
+        merged_bonus = {
+            'text': f"{em_value}% 护盾抗性加成",
+            'value': em_value,
+            'bonuses': [em_bonus, explosive_bonus, kinetic_bonus, thermal_bonus]
+        }
+        
+        # 构建新的 bonuses 列表，移除4条单独的效果加成
+        new_bonuses = []
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if ('护盾电磁抗性加成' in bonus_text or 
+                '护盾爆炸抗性加成' in bonus_text or 
+                '护盾动能抗性加成' in bonus_text or 
+                '护盾热能抗性加成' in bonus_text):
+                continue
+            new_bonuses.append(bonus_dict)
+        
+        return new_bonuses, merged_bonus
+    
+    def _merge_ecm_strength_bonuses(self, bonuses):
+        """合并ECM目标干扰器强度加成：当四种ECM强度加成同时存在且数值相等时，合并为一条
+        
+        四合一：引力 + 磁力 + 光雷达 + 雷达
+        
+        返回: (new_bonuses, merged_bonus)
+        merged_bonus 为 None 表示没有合并，否则包含合并后的信息
+        """
+        # 查找四种ECM强度加成
+        gravimetric_bonus = None
+        magnetometric_bonus = None
+        ladar_bonus = None
+        radar_bonus = None
+        
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if 'ECM目标干扰器引力强度加成' in bonus_text:
+                gravimetric_bonus = bonus_dict
+            elif 'ECM目标干扰器磁力强度加成' in bonus_text:
+                magnetometric_bonus = bonus_dict
+            elif 'ECM目标干扰器光雷达强度加成' in bonus_text:
+                ladar_bonus = bonus_dict
+            elif 'ECM目标干扰器雷达强度加成' in bonus_text:
+                radar_bonus = bonus_dict
+        
+        # 检查是否四者都存在
+        if not (gravimetric_bonus and magnetometric_bonus and ladar_bonus and radar_bonus):
+            return bonuses, None
+        
+        # 提取数值
+        import re
+        grav_match = re.search(r'(\d+\.?\d*)%', gravimetric_bonus['text'])
+        mag_match = re.search(r'(\d+\.?\d*)%', magnetometric_bonus['text'])
+        ladar_match = re.search(r'(\d+\.?\d*)%', ladar_bonus['text'])
+        radar_match = re.search(r'(\d+\.?\d*)%', radar_bonus['text'])
+        
+        if not (grav_match and mag_match and ladar_match and radar_match):
+            return bonuses, None
+        
+        grav_value = grav_match.group(1)
+        mag_value = mag_match.group(1)
+        ladar_value = ladar_match.group(1)
+        radar_value = radar_match.group(1)
+        
+        # 检查数值是否相等
+        if not (grav_value == mag_value == ladar_value == radar_value):
+            return bonuses, None
+        
+        # 构建合并后的ECM强度加成信息
+        merged_bonus = {
+            'text': f"{grav_value}% ECM目标干扰器强度加成",
+            'value': grav_value,
+            'bonuses': [gravimetric_bonus, magnetometric_bonus, ladar_bonus, radar_bonus]
+        }
+        
+        # 构建新的 bonuses 列表，移除4条单独的效果加成
+        new_bonuses = []
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if ('ECM目标干扰器引力强度加成' in bonus_text or 
+                'ECM目标干扰器磁力强度加成' in bonus_text or 
+                'ECM目标干扰器光雷达强度加成' in bonus_text or 
+                'ECM目标干扰器雷达强度加成' in bonus_text):
+                continue
+            new_bonuses.append(bonus_dict)
+        
+        return new_bonuses, merged_bonus
+    
+    def _merge_logistics_drone_bonuses(self, bonuses, skill_type=None):
+        """合并后勤无人机传输量加成：当装甲、护盾、结构传输量加成同时存在且数值相等时，合并为一条
+        
+        三合一：装甲 + 护盾 + 结构
+        合并后数值除以5（航空母舰操作除外）
+        
+        返回: (new_bonuses, merged_bonus)
+        merged_bonus 为 None 表示没有合并，否则包含合并后的信息
+        """
+        # 查找三种后勤无人机传输量加成
+        armor_bonus = None
+        shield_bonus = None
+        hull_bonus = None
+        
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if '后勤无人机装甲值传输量加成' in bonus_text:
+                armor_bonus = bonus_dict
+            elif '后勤无人机护盾传输量加成' in bonus_text:
+                shield_bonus = bonus_dict
+            elif '后勤无人机结构值传输量加成' in bonus_text:
+                hull_bonus = bonus_dict
+        
+        # 检查是否三者都存在
+        if not (armor_bonus and shield_bonus and hull_bonus):
+            return bonuses, None
+        
+        # 提取数值
+        import re
+        armor_match = re.search(r'(\d+\.?\d*)%', armor_bonus['text'])
+        shield_match = re.search(r'(\d+\.?\d*)%', shield_bonus['text'])
+        hull_match = re.search(r'(\d+\.?\d*)%', hull_bonus['text'])
+        
+        if not (armor_match and shield_match and hull_match):
+            return bonuses, None
+        
+        armor_value = float(armor_match.group(1))
+        shield_value = float(shield_match.group(1))
+        hull_value = float(hull_match.group(1))
+        
+        # 检查数值是否相等
+        if not (armor_value == shield_value == hull_value):
+            return bonuses, None
+        
+        # 判断是否有航空母舰操作
+        has_carrier_operation = skill_type and '航空母舰' in skill_type
+        
+        # 数值处理：有航空母舰操作不除以5（保持原值），否则除以5
+        if has_carrier_operation:
+            merged_value = armor_value
+        else:
+            merged_value = armor_value / 5
+        
+        # 格式化数值，保留合适的小数位数
+        if merged_value == int(merged_value):
+            merged_value_str = f"{int(merged_value)}.00"
+        else:
+            merged_value_str = f"{merged_value:.2f}"
+        
+        # 构建合并后的后勤无人机传输量加成信息
+        # 注意：数值和文字之间有一个空格
+        # 从第一个bonus复制必要的字段
+        first_bonus = armor_bonus
+        merged_bonus = {
+            'text': f"{merged_value_str}% 后勤无人机传输量加成",
+            'value': merged_value_str,
+            'effect_name': first_bonus['effect_name'],
+            'attr_name': first_bonus['attr_name'],
+            'modifying_attr_name': first_bonus.get('modifying_attr_name', ''),
+            'bonuses': [armor_bonus, shield_bonus, hull_bonus]
+        }
+        
+        # 构建新的 bonuses 列表，移除3条单独的效果加成，添加合并后的加成
+        new_bonuses = []
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if ('后勤无人机装甲值传输量加成' in bonus_text or 
+                '后勤无人机护盾传输量加成' in bonus_text or 
+                '后勤无人机结构值传输量加成' in bonus_text):
+                continue
+            new_bonuses.append(bonus_dict)
+        
+        # 添加合并后的后勤无人机传输量加成
+        new_bonuses.append(merged_bonus)
+        
+        return new_bonuses, merged_bonus
+    
+    def _merge_remote_shield_booster_bonuses(self, bonuses):
+        """合并远程护盾回充增量器加成：当运转周期减少和启动消耗减少同时存在且数值相等时，合并为一条
+        
+        二合一：运转周期 + 启动消耗
+        
+        返回: (new_bonuses, merged_bonus)
+        merged_bonus 为 None 表示没有合并，否则包含合并后的信息
+        """
+        # 查找两种远程护盾回充增量器加成
+        duration_bonus = None
+        cap_need_bonus = None
+        
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if '远程护盾回充增量器运转周期减少' in bonus_text:
+                duration_bonus = bonus_dict
+            elif '远程护盾回充增量器启动消耗减少' in bonus_text:
+                cap_need_bonus = bonus_dict
+        
+        # 检查是否两者都存在
+        if not (duration_bonus and cap_need_bonus):
+            return bonuses, None
+        
+        # 提取数值
+        import re
+        duration_match = re.search(r'(\d+\.?\d*)%', duration_bonus['text'])
+        cap_need_match = re.search(r'(\d+\.?\d*)%', cap_need_bonus['text'])
+        
+        if not (duration_match and cap_need_match):
+            return bonuses, None
+        
+        duration_value = duration_match.group(1)
+        cap_need_value = cap_need_match.group(1)
+        
+        # 检查数值是否相等
+        if duration_value != cap_need_value:
+            return bonuses, None
+        
+        # 构建合并后的远程护盾回充增量器加成信息
+        merged_bonus = {
+            'text': f"{duration_value}% 远程护盾回充增量器运转周期和启动消耗减少",
+            'value': duration_value,
+            'bonuses': [duration_bonus, cap_need_bonus]
+        }
+        
+        # 构建新的 bonuses 列表，移除2条单独的效果加成
+        new_bonuses = []
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if ('远程护盾回充增量器运转周期减少' in bonus_text or 
+                '远程护盾回充增量器启动消耗减少' in bonus_text):
+                continue
+            new_bonuses.append(bonus_dict)
+        
+        return new_bonuses, merged_bonus
+    
+    def _merge_remote_capital_armor_bonuses(self, bonuses):
+        """合并远程电容传输装置传输量加成和旗舰级远程装甲维修器维修量加成：当两者同时存在且数值相等时，合并为一条
+        
+        二合一：远程电容传输装置传输量 + 旗舰级远程装甲维修器维修量
+        
+        返回: (new_bonuses, merged_bonus)
+        merged_bonus 为 None 表示没有合并，否则包含合并后的信息
+        """
+        # 查找远程电容传输装置传输量加成和旗舰级远程装甲维修器维修量加成
+        cap_transfer_bonus = None
+        capital_armor_bonus = None
+        
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if '远程电容传输装置传输量加成' in bonus_text:
+                cap_transfer_bonus = bonus_dict
+            elif '旗舰级远程装甲维修器维修量加成' in bonus_text:
+                capital_armor_bonus = bonus_dict
+        
+        # 检查是否两者都存在
+        if not (cap_transfer_bonus and capital_armor_bonus):
+            return bonuses, None
+        
+        # 提取数值
+        import re
+        cap_match = re.search(r'(\d+\.?\d*)%', cap_transfer_bonus['text'])
+        armor_match = re.search(r'(\d+\.?\d*)%', capital_armor_bonus['text'])
+        
+        if not (cap_match and armor_match):
+            return bonuses, None
+        
+        cap_value = cap_match.group(1)
+        armor_value = armor_match.group(1)
+        
+        # 检查数值是否相等
+        if cap_value != armor_value:
+            return bonuses, None
+        
+        # 构建合并后的加成信息
+        merged_bonus = {
+            'text': f"{cap_value}% 远程电容传输装置传输量加成和旗舰级远程装甲维修器维修量加成",
+            'value': cap_value,
+            'bonuses': [cap_transfer_bonus, capital_armor_bonus]
+        }
+        
+        # 构建新的 bonuses 列表，移除2条单独的效果加成
+        new_bonuses = []
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            if ('远程电容传输装置传输量加成' in bonus_text or 
+                '旗舰级远程装甲维修器维修量加成' in bonus_text):
+                continue
+            new_bonuses.append(bonus_dict)
+        
+        return new_bonuses, merged_bonus
+    
+    def _merge_command_burst_bonuses(self, bonuses):
+        """合并指挥脉冲波加成：信息战和装甲指挥脉冲波的多种组合
+        
+        优先级：
+        1. 十合一：信息战(4种Buff+1持续时间) + 装甲(4种Buff+1持续时间)
+        2. 信息战五合一：信息战(4种Buff+1持续时间)
+        3. 装甲五合一：装甲(4种Buff+1持续时间)
+        4. 信息战四合一：信息战(4种Buff)
+        5. 装甲四合一：装甲(4种Buff)
+        
+        返回: (new_bonuses, merged_info_armor, merged_info_full, merged_armor_full, 
+               merged_info_with_duration, merged_armor_with_duration, merged_info_buffs, merged_armor_buffs)
+        """
+        import re
+        
+        # 查找所有指挥脉冲波加成
+        info_duration = info_buff1 = info_buff2 = info_buff3 = info_buff4 = None
+        armor_duration = armor_buff1 = armor_buff2 = armor_buff3 = armor_buff4 = None
+        
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            # 装甲指挥和信息战指挥合并格式（十合一格式）- 必须优先检测
+            if '装甲指挥和信息战指挥脉冲波持续时间加成' in bonus_text:
+                armor_duration = info_duration = bonus_dict
+            elif '装甲指挥和信息战指挥脉冲波Buff1强度加成' in bonus_text:
+                armor_buff1 = info_buff1 = bonus_dict
+            elif '装甲指挥和信息战指挥脉冲波Buff2强度加成' in bonus_text:
+                armor_buff2 = info_buff2 = bonus_dict
+            elif '装甲指挥和信息战指挥脉冲波Buff3强度加成' in bonus_text:
+                armor_buff3 = info_buff3 = bonus_dict
+            elif '装甲指挥和信息战指挥脉冲波Buff4强度加成' in bonus_text:
+                armor_buff4 = info_buff4 = bonus_dict
+            # 信息战指挥脉冲波（单独格式，注意：不能匹配合并格式）
+            elif '信息战指挥脉冲波持续时间加成' in bonus_text and '装甲指挥' not in bonus_text:
+                info_duration = bonus_dict
+            elif '信息战指挥脉冲波Buff1强度加成' in bonus_text and '装甲指挥' not in bonus_text:
+                info_buff1 = bonus_dict
+            elif '信息战指挥脉冲波Buff2强度加成' in bonus_text and '装甲指挥' not in bonus_text:
+                info_buff2 = bonus_dict
+            elif '信息战指挥脉冲波Buff3强度加成' in bonus_text and '装甲指挥' not in bonus_text:
+                info_buff3 = bonus_dict
+            elif '信息战指挥脉冲波Buff4强度加成' in bonus_text and '装甲指挥' not in bonus_text:
+                info_buff4 = bonus_dict
+            # 装甲指挥脉冲波（单独格式，注意：不能匹配合并格式）
+            elif '装甲指挥脉冲波持续时间加成' in bonus_text and '信息战指挥' not in bonus_text:
+                armor_duration = bonus_dict
+            elif '装甲指挥脉冲波Buff1强度加成' in bonus_text and '信息战指挥' not in bonus_text:
+                armor_buff1 = bonus_dict
+            elif '装甲指挥脉冲波Buff2强度加成' in bonus_text and '信息战指挥' not in bonus_text:
+                armor_buff2 = bonus_dict
+            elif '装甲指挥脉冲波Buff3强度加成' in bonus_text and '信息战指挥' not in bonus_text:
+                armor_buff3 = bonus_dict
+            elif '装甲指挥脉冲波Buff4强度加成' in bonus_text and '信息战指挥' not in bonus_text:
+                armor_buff4 = bonus_dict
+        
+        # 检查各组是否完整
+        info_buffs_complete = all([info_buff1, info_buff2, info_buff3, info_buff4])
+        armor_buffs_complete = all([armor_buff1, armor_buff2, armor_buff3, armor_buff4])
+        info_full_complete = info_buffs_complete and info_duration
+        armor_full_complete = armor_buffs_complete and armor_duration
+        all_complete = info_full_complete and armor_full_complete
+        
+        def extract_value(bonus_dict):
+            if not bonus_dict:
+                return None
+            match = re.search(r'(\d+\.?\d*)%', bonus_dict['text'])
+            return match.group(1) if match else None
+        
+        def should_remove_bonus(bonus_text):
+            # 合并格式（十合一）
+            if ('装甲指挥和信息战指挥脉冲波持续时间加成' in bonus_text or
+                '装甲指挥和信息战指挥脉冲波Buff1强度加成' in bonus_text or
+                '装甲指挥和信息战指挥脉冲波Buff2强度加成' in bonus_text or
+                '装甲指挥和信息战指挥脉冲波Buff3强度加成' in bonus_text or
+                '装甲指挥和信息战指挥脉冲波Buff4强度加成' in bonus_text):
+                return True
+            # 单独格式
+            return ('信息战指挥脉冲波持续时间加成' in bonus_text or
+                    '信息战指挥脉冲波Buff1强度加成' in bonus_text or
+                    '信息战指挥脉冲波Buff2强度加成' in bonus_text or
+                    '信息战指挥脉冲波Buff3强度加成' in bonus_text or
+                    '信息战指挥脉冲波Buff4强度加成' in bonus_text or
+                    '装甲指挥脉冲波持续时间加成' in bonus_text or
+                    '装甲指挥脉冲波Buff1强度加成' in bonus_text or
+                    '装甲指挥脉冲波Buff2强度加成' in bonus_text or
+                    '装甲指挥脉冲波Buff3强度加成' in bonus_text or
+                    '装甲指挥脉冲波Buff4强度加成' in bonus_text)
+        
+        # 十合一：信息战(4种Buff+1持续时间) + 装甲(4种Buff+1持续时间)
+        if all_complete:
+            values = [extract_value(b) for b in [info_duration, info_buff1, info_buff2, info_buff3, info_buff4,
+                                                  armor_duration, armor_buff1, armor_buff2, armor_buff3, armor_buff4]]
+            if all(v == values[0] for v in values):
+                merged_bonus = {
+                    'text': f"{values[0]}% 装甲指挥和信息战指挥脉冲波强度和持续时间加成",
+                    'value': values[0],
+                    'bonuses': [info_duration, info_buff1, info_buff2, info_buff3, info_buff4,
+                               armor_duration, armor_buff1, armor_buff2, armor_buff3, armor_buff4]
+                }
+                new_bonuses = [b for b in bonuses if not should_remove_bonus(b.get('text', ''))]
+                return new_bonuses, merged_bonus, None, None, None, None, None, None
+        
+        # 信息战五合一
+        merged_info_full = None
+        if info_full_complete:
+            values = [extract_value(b) for b in [info_duration, info_buff1, info_buff2, info_buff3, info_buff4]]
+            if all(v == values[0] for v in values):
+                merged_info_full = {
+                    'text': f"{values[0]}% 信息战指挥脉冲波强度和持续时间加成",
+                    'value': values[0],
+                    'bonuses': [info_duration, info_buff1, info_buff2, info_buff3, info_buff4]
+                }
+        
+        # 装甲五合一
+        merged_armor_full = None
+        if armor_full_complete:
+            values = [extract_value(b) for b in [armor_duration, armor_buff1, armor_buff2, armor_buff3, armor_buff4]]
+            if all(v == values[0] for v in values):
+                merged_armor_full = {
+                    'text': f"{values[0]}% 装甲指挥脉冲波强度和持续时间加成",
+                    'value': values[0],
+                    'bonuses': [armor_duration, armor_buff1, armor_buff2, armor_buff3, armor_buff4]
+                }
+        
+        # 信息战四合一（只有Buff）- 只有当五合一失败时才检查
+        merged_info_buffs = None
+        if not merged_info_full and info_buffs_complete:
+            values = [extract_value(b) for b in [info_buff1, info_buff2, info_buff3, info_buff4]]
+            if all(v == values[0] for v in values):
+                merged_info_buffs = {
+                    'text': f"{values[0]}% 信息战指挥脉冲波强度加成",
+                    'value': values[0],
+                    'bonuses': [info_buff1, info_buff2, info_buff3, info_buff4]
+                }
+        
+        # 装甲四合一（只有Buff）- 只有当五合一失败时才检查
+        merged_armor_buffs = None
+        if not merged_armor_full and armor_buffs_complete:
+            values = [extract_value(b) for b in [armor_buff1, armor_buff2, armor_buff3, armor_buff4]]
+            if all(v == values[0] for v in values):
+                merged_armor_buffs = {
+                    'text': f"{values[0]}% 装甲指挥脉冲波强度加成",
+                    'value': values[0],
+                    'bonuses': [armor_buff1, armor_buff2, armor_buff3, armor_buff4]
+                }
+        
+        # 构建新的 bonuses 列表
+        new_bonuses = []
+        for bonus_dict in bonuses:
+            bonus_text = bonus_dict.get('text', '')
+            should_remove = False
+            if merged_info_full and any(b and bonus_dict == b for b in [info_duration, info_buff1, info_buff2, info_buff3, info_buff4]):
+                should_remove = True
+            if merged_armor_full and any(b and bonus_dict == b for b in [armor_duration, armor_buff1, armor_buff2, armor_buff3, armor_buff4]):
+                should_remove = True
+            if merged_info_buffs and any(b and bonus_dict == b for b in [info_buff1, info_buff2, info_buff3, info_buff4]):
+                should_remove = True
+            if merged_armor_buffs and any(b and bonus_dict == b for b in [armor_buff1, armor_buff2, armor_buff3, armor_buff4]):
+                should_remove = True
+            if should_remove:
+                continue
+            new_bonuses.append(bonus_dict)
+        
+        return new_bonuses, None, merged_info_full, merged_armor_full, None, None, merged_info_buffs, merged_armor_buffs
     
     def _build_result(self, item_info, skill_bonuses_dict, unique_bonuses_list, attr_dict, item_name_cn):
         """构建结果文本（同步自 test_111_v2.py）
@@ -1493,14 +3224,103 @@ class EveESIPlugin(Star):
                 bonuses, merged_range_falloff_bonus = self._merge_weapon_range_falloff_bonuses(bonuses)
                 # 处理索敌扰断器CPU需求和启动消耗合并
                 bonuses, merged_target_painter_bonus = self._merge_target_painter_cpu_activation_bonuses(bonuses)
-                part = f"{skill_type}每升一级:\n"
+                # 处理加力燃烧器和微型跃迁推进器过载效果加成合并
+                bonuses, merged_propulsion_overload_bonus = self._merge_propulsion_overload_bonuses(bonuses)
+                # 处理拦截失效装置三个加成合并
+                bonuses, merged_interdiction_nullifier_bonus = self._merge_interdiction_nullifier_bonuses(bonuses)
+                # 处理轻型导弹和火箭四种伤害加成合并
+                bonuses, merged_light_missile_bonus = self._merge_light_missile_damage_bonuses(bonuses)
+                # 处理能量中和器和掠能器最佳射程加成合并
+                bonuses, merged_neutralizer_range_bonus = self._merge_neutralizer_range_bonuses(bonuses)
+                # 处理能量中和器和掠能器失准范围加成合并
+                bonuses, merged_neutralizer_falloff_bonus = self._merge_neutralizer_falloff_bonuses(bonuses)
+                # 处理掠能器和能量中和器吸取量加成合并
+                bonuses, merged_neutralizer_amount_bonus = self._merge_neutralizer_amount_bonuses(bonuses)
+                # 处理掠能器有效距离和吸取量加成合并
+                bonuses, merged_nosferatu_range_amount_bonus = self._merge_nosferatu_range_amount_bonuses(bonuses)
+                # 处理远程装甲维修器运转周期和启动消耗合并
+                bonuses, merged_remote_armor_bonus = self._merge_remote_armor_repair_bonuses(bonuses)
+                # 处理无人机伤害和HP加成合并（四合一：伤害+装甲+结构+护盾）
+                bonuses, merged_drone_damage_hp_bonus = self._merge_drone_damage_hp_bonuses(bonuses)
+                # 处理小型能量炮台最佳射程和失准范围加成合并（二合一）
+                bonuses, merged_small_energy_range_bonus = self._merge_small_energy_turret_range_bonuses(bonuses)
+                # 处理远程装甲维修器最佳射程和失准范围加成合并（二合一）
+                bonuses, merged_remote_armor_range_bonus = self._merge_remote_armor_repair_range_bonuses(bonuses)
+                # 处理中型能量炮台最佳射程和失准范围加成合并（二合一）
+                bonuses, merged_medium_energy_range_bonus = self._merge_medium_energy_turret_range_bonuses(bonuses)
+                # 处理武器伤害加成合并（鱼雷、巡航导弹、重型快速导弹、大型能量炮台、重型导弹、重型攻击导弹、火箭、超大型巡航导弹、超大型鱼雷、破坏型长枪）
+                bonuses, merged_weapon_bonus, merged_torpedo_bonus, merged_cruise_bonus, merged_rapid_bonus, merged_heavy_assault_heavy_bonus, merged_heavy_assault_bonus, merged_heavy_bonus, merged_rocket_bonus, merged_rocket_partial_bonus, merged_xl_cruise_torpedo_bonus, merged_lance_bonus = self._merge_weapon_damage_bonuses(bonuses)
+                # 处理指挥脉冲波加成合并（信息战和装甲指挥脉冲波）
+                bonuses, merged_command_burst, merged_info_full, merged_armor_full, merged_info_duration, merged_armor_duration, merged_info_buffs, merged_armor_buffs = self._merge_command_burst_bonuses(bonuses)
+                # 处理导弹最大速度加成合并（二合一：重型导弹+重型攻击导弹）
+                bonuses, merged_missile_velocity_bonus = self._merge_missile_velocity_bonuses(bonuses)
+                # 处理后勤无人机传输量加成合并（三合一：装甲+护盾+结构）
+                bonuses, merged_logistics_drone_bonus = self._merge_logistics_drone_bonuses(bonuses, skill_type)
+                # 处理远程感应抑阻器效果加成合并（二合一：最大锁定范围+扫描分辨率）
+                bonuses, merged_sensor_dampener_bonus = self._merge_sensor_dampener_bonuses(bonuses)
+                # 处理护盾抗性加成合并（四合一：电磁+爆炸+动能+热能）
+                bonuses, merged_shield_resistance_bonus = self._merge_shield_resistance_bonuses(bonuses)
+                # 处理ECM目标干扰器强度加成合并（四合一：引力+磁力+光雷达+雷达）
+                bonuses, merged_ecm_strength_bonus = self._merge_ecm_strength_bonuses(bonuses)
+                # 处理远程护盾回充增量器加成合并（二合一：运转周期+启动消耗）
+                bonuses, merged_remote_shield_bonus = self._merge_remote_shield_booster_bonuses(bonuses)
+                # 处理远程电容传输装置传输量加成和旗舰级远程装甲维修器维修量加成合并（二合一）
+                bonuses, merged_remote_capital_armor_bonus = self._merge_remote_capital_armor_bonuses(bonuses)
+                
+                # 如果舰船有战略巡洋舰操作技能加成，先添加子系统固定加成
+                part = ""
+                if skill_type == '艾玛战略巡洋舰操作':
+                    part = "艾玛防御子系统每升一级:\n"
+                    part += "· 艾玛防御子系统效果加成\n"
+                    part += "艾玛攻击子系统每升一级:\n"
+                    part += "· 艾玛攻击子系统效果加成\n"
+                    part += "艾玛推进子系统每升一级:\n"
+                    part += "· 艾玛推进子系统效果加成\n"
+                    part += "艾玛核心子系统每升一级:\n"
+                    part += "· 艾玛核心子系统效果加成\n"
+                    part += "\n"
+                elif skill_type == '盖伦特战略巡洋舰操作':
+                    part = "盖伦特防御子系统每升一级:\n"
+                    part += "· 盖伦特防御子系统效果加成\n"
+                    part += "盖伦特攻击子系统每升一级:\n"
+                    part += "· 盖伦特攻击子系统效果加成\n"
+                    part += "盖伦特推进子系统每升一级:\n"
+                    part += "· 盖伦特推进子系统效果加成\n"
+                    part += "盖伦特核心子系统每升一级:\n"
+                    part += "· 盖伦特核心子系统效果加成\n"
+                    part += "\n"
+                elif skill_type == '加达里战略巡洋舰操作':
+                    part = "加达里防御子系统每升一级:\n"
+                    part += "· 加达里防御子系统效果加成\n"
+                    part += "加达里攻击子系统每升一级:\n"
+                    part += "· 加达里攻击子系统效果加成\n"
+                    part += "加达里推进子系统每升一级:\n"
+                    part += "· 加达里推进子系统效果加成\n"
+                    part += "加达里核心子系统每升一级:\n"
+                    part += "· 加达里核心子系统效果加成\n"
+                    part += "\n"
+                elif skill_type == '米玛塔尔战略巡洋舰操作':
+                    part = "米玛塔尔防御子系统每升一级:\n"
+                    part += "· 米玛塔尔防御子系统效果加成\n"
+                    part += "米玛塔尔攻击子系统每升一级:\n"
+                    part += "· 米玛塔尔攻击子系统效果加成\n"
+                    part += "米玛塔尔推进子系统每升一级:\n"
+                    part += "· 米玛塔尔推进子系统效果加成\n"
+                    part += "米玛塔尔核心子系统每升一级:\n"
+                    part += "· 米玛塔尔核心子系统效果加成\n"
+                    part += "\n"
+                
+                part += f"{skill_type}每升一级:\n"
                 for bonus_dict in bonuses:
                     bonus_text = bonus_dict['text']
+                    # 如果描述包含"不显示"，则跳过
+                    if '不显示' in bonus_text:
+                        continue
                     effect_name = bonus_dict['effect_name']
                     # 新格式: effect_name|modified_attr|modifying_attr
                     modified_attr = bonus_dict['attr_name']
                     modifying_attr = bonus_dict.get('modifying_attr_name', '')
-                    part += f"{bonus_text}({effect_name}|{modified_attr}|{modifying_attr})\n"
+                    part += f"{bonus_text} ({effect_name}|{modified_attr}|{modifying_attr})\n"
                 # 如果有合并的装甲抗性加成，特殊格式输出
                 if merged_armor_bonus:
                     bonus_text = merged_armor_bonus['text']
@@ -1508,7 +3328,7 @@ class EveESIPlugin(Star):
                     first_bonus = merged_armor_bonus['bonuses'][0]
                     first_modified_attr = first_bonus['attr_name']
                     first_modifying_attr = first_bonus.get('modifying_attr_name', '')
-                    part += f"{bonus_text}({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    part += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
                     # 后续行只显示 effect_name|modified_attr|modifying_attr，前面加空格对齐
                     for i in range(1, len(merged_armor_bonus['bonuses'])):
                         bonus_info = merged_armor_bonus['bonuses'][i]
@@ -1524,7 +3344,7 @@ class EveESIPlugin(Star):
                     first_bonus = merged_weapon_disruption_bonus['bonuses'][0]
                     first_modified_attr = first_bonus['attr_name']
                     first_modifying_attr = first_bonus.get('modifying_attr_name', '')
-                    part += f"{bonus_text}({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    part += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
                     # 后续行只显示 effect_name|modified_attr|modifying_attr，前面加空格对齐
                     for i in range(1, len(merged_weapon_disruption_bonus['bonuses'])):
                         bonus_info = merged_weapon_disruption_bonus['bonuses'][i]
@@ -1540,7 +3360,7 @@ class EveESIPlugin(Star):
                     first_bonus = merged_range_falloff_bonus['bonuses'][0]
                     first_modified_attr = first_bonus['attr_name']
                     first_modifying_attr = first_bonus.get('modifying_attr_name', '')
-                    part += f"{bonus_text}({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    part += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
                     # 后续行只显示 effect_name|modified_attr|modifying_attr，前面加空格对齐
                     for i in range(1, len(merged_range_falloff_bonus['bonuses'])):
                         bonus_info = merged_range_falloff_bonus['bonuses'][i]
@@ -1556,13 +3376,504 @@ class EveESIPlugin(Star):
                     first_bonus = merged_target_painter_bonus['bonuses'][0]
                     first_modified_attr = first_bonus['attr_name']
                     first_modifying_attr = first_bonus.get('modifying_attr_name', '')
-                    part += f"{bonus_text}({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    part += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
                     # 后续行只显示 effect_name|modified_attr|modifying_attr，前面加空格对齐
                     for i in range(1, len(merged_target_painter_bonus['bonuses'])):
                         bonus_info = merged_target_painter_bonus['bonuses'][i]
                         modified_attr = bonus_info['attr_name']
                         modifying_attr = bonus_info.get('modifying_attr_name', '')
                         # 计算缩进：数值部分的长度 + 1
+                        indent = len(bonus_text) + 1
+                        part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+                # 如果有合并的加力燃烧器和微型跃迁推进器过载效果加成，特殊格式输出
+                if merged_propulsion_overload_bonus:
+                    bonus_text = merged_propulsion_overload_bonus['text']
+                    # 第一行显示数值和描述，以及第一个 effect_name|modified_attr|modifying_attr
+                    first_bonus = merged_propulsion_overload_bonus['bonuses'][0]
+                    first_modified_attr = first_bonus['attr_name']
+                    first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                    part += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    # 后续行只显示 effect_name|modified_attr|modifying_attr，前面加空格对齐
+                    for i in range(1, len(merged_propulsion_overload_bonus['bonuses'])):
+                        bonus_info = merged_propulsion_overload_bonus['bonuses'][i]
+                        modified_attr = bonus_info['attr_name']
+                        modifying_attr = bonus_info.get('modifying_attr_name', '')
+                        # 计算缩进：数值部分的长度 + 1
+                        indent = len(bonus_text) + 1
+                        part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+                # 如果有合并的拦截失效装置三个加成，特殊格式输出
+                if merged_interdiction_nullifier_bonus:
+                    bonus_text = merged_interdiction_nullifier_bonus['text']
+                    # 第一行显示数值和描述，以及第一个 effect_name|modified_attr|modifying_attr
+                    first_bonus = merged_interdiction_nullifier_bonus['bonuses'][0]
+                    first_modified_attr = first_bonus['attr_name']
+                    first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                    part += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    # 后续行只显示 effect_name|modified_attr|modifying_attr，前面加空格对齐
+                    for i in range(1, len(merged_interdiction_nullifier_bonus['bonuses'])):
+                        bonus_info = merged_interdiction_nullifier_bonus['bonuses'][i]
+                        modified_attr = bonus_info['attr_name']
+                        modifying_attr = bonus_info.get('modifying_attr_name', '')
+                        # 计算缩进：数值部分的长度 + 1
+                        indent = len(bonus_text) + 1
+                        part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+                # 如果有合并的轻型导弹和火箭四种伤害加成，特殊格式输出
+                if merged_light_missile_bonus:
+                    bonus_text = merged_light_missile_bonus['text']
+                    # 第一行显示数值和描述，以及第一个 effect_name|modified_attr|modifying_attr
+                    first_bonus = merged_light_missile_bonus['bonuses'][0]
+                    first_modified_attr = first_bonus['attr_name']
+                    first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                    part += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    # 后续行只显示 effect_name|modified_attr|modifying_attr，前面加空格对齐
+                    for i in range(1, len(merged_light_missile_bonus['bonuses'])):
+                        bonus_info = merged_light_missile_bonus['bonuses'][i]
+                        modified_attr = bonus_info['attr_name']
+                        modifying_attr = bonus_info.get('modifying_attr_name', '')
+                        # 计算缩进：数值部分的长度 + 1
+                        indent = len(bonus_text) + 1
+                        part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+                # 如果有合并的能量中和器和掠能器最佳射程加成，特殊格式输出
+                if merged_neutralizer_range_bonus:
+                    bonus_text = merged_neutralizer_range_bonus['text']
+                    # 第一行显示数值和描述，以及第一个 effect_name|modified_attr|modifying_attr
+                    first_bonus = merged_neutralizer_range_bonus['bonuses'][0]
+                    first_modified_attr = first_bonus['attr_name']
+                    first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                    part += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    # 后续行只显示 effect_name|modified_attr|modifying_attr，前面加空格对齐
+                    for i in range(1, len(merged_neutralizer_range_bonus['bonuses'])):
+                        bonus_info = merged_neutralizer_range_bonus['bonuses'][i]
+                        modified_attr = bonus_info['attr_name']
+                        modifying_attr = bonus_info.get('modifying_attr_name', '')
+                        # 计算缩进：数值部分的长度 + 1
+                        indent = len(bonus_text) + 1
+                        part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+                # 如果有合并的能量中和器和掠能器失准范围加成，特殊格式输出
+                if merged_neutralizer_falloff_bonus:
+                    bonus_text = merged_neutralizer_falloff_bonus['text']
+                    # 第一行显示数值和描述，以及第一个 effect_name|modified_attr|modifying_attr
+                    first_bonus = merged_neutralizer_falloff_bonus['bonuses'][0]
+                    first_modified_attr = first_bonus['attr_name']
+                    first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                    part += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    # 后续行只显示 effect_name|modified_attr|modifying_attr，前面加空格对齐
+                    for i in range(1, len(merged_neutralizer_falloff_bonus['bonuses'])):
+                        bonus_info = merged_neutralizer_falloff_bonus['bonuses'][i]
+                        modified_attr = bonus_info['attr_name']
+                        modifying_attr = bonus_info.get('modifying_attr_name', '')
+                        # 计算缩进：数值部分的长度 + 1
+                        indent = len(bonus_text) + 1
+                        part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+                # 如果有合并的掠能器和能量中和器吸取量加成，特殊格式输出
+                if merged_neutralizer_amount_bonus:
+                    bonus_text = merged_neutralizer_amount_bonus['text']
+                    # 第一行显示数值和描述，以及第一个 effect_name|modified_attr|modifying_attr
+                    first_bonus = merged_neutralizer_amount_bonus['bonuses'][0]
+                    first_modified_attr = first_bonus['attr_name']
+                    first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                    part += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    # 后续行只显示 effect_name|modified_attr|modifying_attr，前面加空格对齐
+                    for i in range(1, len(merged_neutralizer_amount_bonus['bonuses'])):
+                        bonus_info = merged_neutralizer_amount_bonus['bonuses'][i]
+                        modified_attr = bonus_info['attr_name']
+                        modifying_attr = bonus_info.get('modifying_attr_name', '')
+                        # 计算缩进：数值部分的长度 + 1
+                        indent = len(bonus_text) + 1
+                        part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+                # 如果有合并的掠能器吸取量和有效距离加成，特殊格式输出
+                if merged_nosferatu_range_amount_bonus:
+                    bonus_text = merged_nosferatu_range_amount_bonus['text']
+                    # 第一行显示数值和描述，以及第一个 effect_name|modified_attr|modifying_attr
+                    first_bonus = merged_nosferatu_range_amount_bonus['bonuses'][0]
+                    first_modified_attr = first_bonus['attr_name']
+                    first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                    part += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    # 后续行只显示 effect_name|modified_attr|modifying_attr，前面加空格对齐
+                    for i in range(1, len(merged_nosferatu_range_amount_bonus['bonuses'])):
+                        bonus_info = merged_nosferatu_range_amount_bonus['bonuses'][i]
+                        modified_attr = bonus_info['attr_name']
+                        modifying_attr = bonus_info.get('modifying_attr_name', '')
+                        # 计算缩进：数值部分的长度 + 1
+                        indent = len(bonus_text) + 1
+                        part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+                # 如果有合并的远程装甲维修器运转周期和启动消耗，特殊格式输出
+                if merged_remote_armor_bonus:
+                    bonus_text = merged_remote_armor_bonus['text']
+                    # 第一行显示数值和描述，以及第一个 effect_name|modified_attr|modifying_attr
+                    first_bonus = merged_remote_armor_bonus['bonuses'][0]
+                    first_modified_attr = first_bonus['attr_name']
+                    first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                    part += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    # 后续行只显示 effect_name|modified_attr|modifying_attr，前面加空格对齐
+                    for i in range(1, len(merged_remote_armor_bonus['bonuses'])):
+                        bonus_info = merged_remote_armor_bonus['bonuses'][i]
+                        modified_attr = bonus_info['attr_name']
+                        modifying_attr = bonus_info.get('modifying_attr_name', '')
+                        # 计算缩进：数值部分的长度 + 1
+                        indent = len(bonus_text) + 1
+                        part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+                # 如果有合并的无人机伤害和HP加成，特殊格式输出
+                if merged_drone_damage_hp_bonus:
+                    bonus_text = merged_drone_damage_hp_bonus['text']
+                    # 第一行显示数值和描述，以及第一个 effect_name|modified_attr|modifying_attr
+                    first_bonus = merged_drone_damage_hp_bonus['bonuses'][0]
+                    first_modified_attr = first_bonus['attr_name']
+                    first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                    part += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    # 后续行只显示 effect_name|modified_attr|modifying_attr，前面加空格对齐
+                    for i in range(1, len(merged_drone_damage_hp_bonus['bonuses'])):
+                        bonus_info = merged_drone_damage_hp_bonus['bonuses'][i]
+                        modified_attr = bonus_info['attr_name']
+                        modifying_attr = bonus_info.get('modifying_attr_name', '')
+                        # 计算缩进：数值部分的长度 + 1
+                        indent = len(bonus_text) + 1
+                        part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+                # 如果有合并的小型能量炮台最佳射程和失准范围加成，特殊格式输出
+                if merged_small_energy_range_bonus:
+                    bonus_text = merged_small_energy_range_bonus['text']
+                    # 第一行显示数值和描述，以及第一个 effect_name|modified_attr|modifying_attr
+                    first_bonus = merged_small_energy_range_bonus['bonuses'][0]
+                    first_modified_attr = first_bonus['attr_name']
+                    first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                    part += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    # 后续行只显示 effect_name|modified_attr|modifying_attr，前面加空格对齐
+                    for i in range(1, len(merged_small_energy_range_bonus['bonuses'])):
+                        bonus_info = merged_small_energy_range_bonus['bonuses'][i]
+                        modified_attr = bonus_info['attr_name']
+                        modifying_attr = bonus_info.get('modifying_attr_name', '')
+                        # 计算缩进：数值部分的长度 + 1
+                        indent = len(bonus_text) + 1
+                        part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+                # 如果有合并的远程装甲维修器最佳射程和失准范围加成，特殊格式输出
+                if merged_remote_armor_range_bonus:
+                    bonus_text = merged_remote_armor_range_bonus['text']
+                    # 第一行显示数值和描述，以及第一个 effect_name|modified_attr|modifying_attr
+                    first_bonus = merged_remote_armor_range_bonus['bonuses'][0]
+                    first_modified_attr = first_bonus['attr_name']
+                    first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                    part += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    # 后续行只显示 effect_name|modified_attr|modifying_attr，前面加空格对齐
+                    for i in range(1, len(merged_remote_armor_range_bonus['bonuses'])):
+                        bonus_info = merged_remote_armor_range_bonus['bonuses'][i]
+                        modified_attr = bonus_info['attr_name']
+                        modifying_attr = bonus_info.get('modifying_attr_name', '')
+                        # 计算缩进：数值部分的长度 + 1
+                        indent = len(bonus_text) + 1
+                        part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+                # 如果有合并的中型能量炮台最佳射程和失准范围加成，特殊格式输出
+                if merged_medium_energy_range_bonus:
+                    bonus_text = merged_medium_energy_range_bonus['text']
+                    # 第一行显示数值和描述，以及第一个 effect_name|modified_attr|modifying_attr
+                    first_bonus = merged_medium_energy_range_bonus['bonuses'][0]
+                    first_modified_attr = first_bonus['attr_name']
+                    first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                    part += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    # 后续行只显示 effect_name|modified_attr|modifying_attr，前面加空格对齐
+                    for i in range(1, len(merged_medium_energy_range_bonus['bonuses'])):
+                        bonus_info = merged_medium_energy_range_bonus['bonuses'][i]
+                        modified_attr = bonus_info['attr_name']
+                        modifying_attr = bonus_info.get('modifying_attr_name', '')
+                        # 计算缩进：数值部分的长度 + 1
+                        indent = len(bonus_text) + 1
+                        part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+                # 如果有合并的武器伤害加成（十三合一），特殊格式输出
+                if merged_weapon_bonus:
+                    bonus_text = merged_weapon_bonus['text']
+                    first_bonus = merged_weapon_bonus['bonuses'][0]
+                    first_modified_attr = first_bonus['attr_name']
+                    first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                    part += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    for i in range(1, len(merged_weapon_bonus['bonuses'])):
+                        bonus_info = merged_weapon_bonus['bonuses'][i]
+                        modified_attr = bonus_info['attr_name']
+                        modifying_attr = bonus_info.get('modifying_attr_name', '')
+                        indent = len(bonus_text) + 1
+                        part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+                # 如果有合并的鱼雷伤害加成（四合一），特殊格式输出
+                if merged_torpedo_bonus:
+                    bonus_text = merged_torpedo_bonus['text']
+                    first_bonus = merged_torpedo_bonus['bonuses'][0]
+                    first_modified_attr = first_bonus['attr_name']
+                    first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                    part += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    for i in range(1, len(merged_torpedo_bonus['bonuses'])):
+                        bonus_info = merged_torpedo_bonus['bonuses'][i]
+                        modified_attr = bonus_info['attr_name']
+                        modifying_attr = bonus_info.get('modifying_attr_name', '')
+                        indent = len(bonus_text) + 1
+                        part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+                # 如果有合并的巡航导弹伤害加成（四合一），特殊格式输出
+                if merged_cruise_bonus:
+                    bonus_text = merged_cruise_bonus['text']
+                    first_bonus = merged_cruise_bonus['bonuses'][0]
+                    first_modified_attr = first_bonus['attr_name']
+                    first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                    part += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    for i in range(1, len(merged_cruise_bonus['bonuses'])):
+                        bonus_info = merged_cruise_bonus['bonuses'][i]
+                        modified_attr = bonus_info['attr_name']
+                        modifying_attr = bonus_info.get('modifying_attr_name', '')
+                        indent = len(bonus_text) + 1
+                        part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+                # 如果有合并的重型快速导弹伤害加成（四合一），特殊格式输出
+                if merged_rapid_bonus:
+                    bonus_text = merged_rapid_bonus['text']
+                    first_bonus = merged_rapid_bonus['bonuses'][0]
+                    first_modified_attr = first_bonus['attr_name']
+                    first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                    part += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    for i in range(1, len(merged_rapid_bonus['bonuses'])):
+                        bonus_info = merged_rapid_bonus['bonuses'][i]
+                        modified_attr = bonus_info['attr_name']
+                        modifying_attr = bonus_info.get('modifying_attr_name', '')
+                        indent = len(bonus_text) + 1
+                        part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+                # 如果有合并的火箭伤害加成（四合一），特殊格式输出
+                if merged_rocket_bonus:
+                    bonus_text = merged_rocket_bonus['text']
+                    first_bonus = merged_rocket_bonus['bonuses'][0]
+                    first_modified_attr = first_bonus['attr_name']
+                    first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                    part += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    for i in range(1, len(merged_rocket_bonus['bonuses'])):
+                        bonus_info = merged_rocket_bonus['bonuses'][i]
+                        modified_attr = bonus_info['attr_name']
+                        modifying_attr = bonus_info.get('modifying_attr_name', '')
+                        indent = len(bonus_text) + 1
+                        part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+                # 如果有合并的火箭电磁、动能、热能伤害加成（三合一），特殊格式输出
+                if merged_rocket_partial_bonus:
+                    bonus_text = merged_rocket_partial_bonus['text']
+                    first_bonus = merged_rocket_partial_bonus['bonuses'][0]
+                    first_modified_attr = first_bonus['attr_name']
+                    first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                    part += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    for i in range(1, len(merged_rocket_partial_bonus['bonuses'])):
+                        bonus_info = merged_rocket_partial_bonus['bonuses'][i]
+                        modified_attr = bonus_info['attr_name']
+                        modifying_attr = bonus_info.get('modifying_attr_name', '')
+                        indent = len(bonus_text) + 1
+                        part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+                # 如果有合并的破坏型长枪伤害加成（四合一），特殊格式输出
+                if merged_lance_bonus:
+                    bonus_text = merged_lance_bonus['text']
+                    first_bonus = merged_lance_bonus['bonuses'][0]
+                    first_modified_attr = first_bonus['attr_name']
+                    first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                    part += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    for i in range(1, len(merged_lance_bonus['bonuses'])):
+                        bonus_info = merged_lance_bonus['bonuses'][i]
+                        modified_attr = bonus_info['attr_name']
+                        modifying_attr = bonus_info.get('modifying_attr_name', '')
+                        indent = len(bonus_text) + 1
+                        part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+                # 如果有合并的重型导弹和重型攻击导弹伤害加成（八合一），特殊格式输出
+                if merged_heavy_assault_heavy_bonus:
+                    bonus_text = merged_heavy_assault_heavy_bonus['text']
+                    first_bonus = merged_heavy_assault_heavy_bonus['bonuses'][0]
+                    first_modified_attr = first_bonus['attr_name']
+                    first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                    part += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    for i in range(1, len(merged_heavy_assault_heavy_bonus['bonuses'])):
+                        bonus_info = merged_heavy_assault_heavy_bonus['bonuses'][i]
+                        modified_attr = bonus_info['attr_name']
+                        modifying_attr = bonus_info.get('modifying_attr_name', '')
+                        indent = len(bonus_text) + 1
+                        part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+                # 如果有合并的重型攻击导弹伤害加成（四合一），特殊格式输出
+                if merged_heavy_assault_bonus:
+                    bonus_text = merged_heavy_assault_bonus['text']
+                    first_bonus = merged_heavy_assault_bonus['bonuses'][0]
+                    first_modified_attr = first_bonus['attr_name']
+                    first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                    part += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    for i in range(1, len(merged_heavy_assault_bonus['bonuses'])):
+                        bonus_info = merged_heavy_assault_bonus['bonuses'][i]
+                        modified_attr = bonus_info['attr_name']
+                        modifying_attr = bonus_info.get('modifying_attr_name', '')
+                        indent = len(bonus_text) + 1
+                        part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+                # 如果有合并的重型导弹伤害加成（四合一），特殊格式输出
+                if merged_heavy_bonus:
+                    bonus_text = merged_heavy_bonus['text']
+                    first_bonus = merged_heavy_bonus['bonuses'][0]
+                    first_modified_attr = first_bonus['attr_name']
+                    first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                    part += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    for i in range(1, len(merged_heavy_bonus['bonuses'])):
+                        bonus_info = merged_heavy_bonus['bonuses'][i]
+                        modified_attr = bonus_info['attr_name']
+                        modifying_attr = bonus_info.get('modifying_attr_name', '')
+                        indent = len(bonus_text) + 1
+                        part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+                # 如果有合并的超大型巡航导弹、超大型鱼雷和鱼雷伤害加成（十二合一），特殊格式输出
+                if merged_xl_cruise_torpedo_bonus:
+                    bonus_text = merged_xl_cruise_torpedo_bonus['text']
+                    first_bonus = merged_xl_cruise_torpedo_bonus['bonuses'][0]
+                    first_modified_attr = first_bonus['attr_name']
+                    first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                    part += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    for i in range(1, len(merged_xl_cruise_torpedo_bonus['bonuses'])):
+                        bonus_info = merged_xl_cruise_torpedo_bonus['bonuses'][i]
+                        modified_attr = bonus_info['attr_name']
+                        modifying_attr = bonus_info.get('modifying_attr_name', '')
+                        indent = len(bonus_text) + 1
+                        part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+                # 如果有合并的指挥脉冲波加成（十合一），特殊格式输出
+                if merged_command_burst:
+                    bonus_text = merged_command_burst['text']
+                    first_bonus = merged_command_burst['bonuses'][0]
+                    first_modified_attr = first_bonus['attr_name']
+                    first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                    part += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    for i in range(1, len(merged_command_burst['bonuses'])):
+                        bonus_info = merged_command_burst['bonuses'][i]
+                        modified_attr = bonus_info['attr_name']
+                        modifying_attr = bonus_info.get('modifying_attr_name', '')
+                        indent = len(bonus_text) + 1
+                        part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+                # 如果有合并的信息战指挥脉冲波加成（五合一），特殊格式输出
+                if merged_info_full:
+                    bonus_text = merged_info_full['text']
+                    first_bonus = merged_info_full['bonuses'][0]
+                    first_modified_attr = first_bonus['attr_name']
+                    first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                    part += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    for i in range(1, len(merged_info_full['bonuses'])):
+                        bonus_info = merged_info_full['bonuses'][i]
+                        modified_attr = bonus_info['attr_name']
+                        modifying_attr = bonus_info.get('modifying_attr_name', '')
+                        indent = len(bonus_text) + 1
+                        part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+                # 如果有合并的装甲指挥脉冲波加成（五合一），特殊格式输出
+                if merged_armor_full:
+                    bonus_text = merged_armor_full['text']
+                    first_bonus = merged_armor_full['bonuses'][0]
+                    first_modified_attr = first_bonus['attr_name']
+                    first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                    part += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    for i in range(1, len(merged_armor_full['bonuses'])):
+                        bonus_info = merged_armor_full['bonuses'][i]
+                        modified_attr = bonus_info['attr_name']
+                        modifying_attr = bonus_info.get('modifying_attr_name', '')
+                        indent = len(bonus_text) + 1
+                        part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+                # 如果有合并的信息战指挥脉冲波强度加成（四合一），特殊格式输出
+                if merged_info_buffs:
+                    bonus_text = merged_info_buffs['text']
+                    first_bonus = merged_info_buffs['bonuses'][0]
+                    first_modified_attr = first_bonus['attr_name']
+                    first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                    part += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    for i in range(1, len(merged_info_buffs['bonuses'])):
+                        bonus_info = merged_info_buffs['bonuses'][i]
+                        modified_attr = bonus_info['attr_name']
+                        modifying_attr = bonus_info.get('modifying_attr_name', '')
+                        indent = len(bonus_text) + 1
+                        part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+                # 如果有合并的装甲指挥脉冲波强度加成（四合一），特殊格式输出
+                if merged_armor_buffs:
+                    bonus_text = merged_armor_buffs['text']
+                    first_bonus = merged_armor_buffs['bonuses'][0]
+                    first_modified_attr = first_bonus['attr_name']
+                    first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                    part += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    for i in range(1, len(merged_armor_buffs['bonuses'])):
+                        bonus_info = merged_armor_buffs['bonuses'][i]
+                        modified_attr = bonus_info['attr_name']
+                        modifying_attr = bonus_info.get('modifying_attr_name', '')
+                        indent = len(bonus_text) + 1
+                        part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+                # 如果有合并的导弹最大速度加成（二合一），特殊格式输出
+                if merged_missile_velocity_bonus:
+                    bonus_text = merged_missile_velocity_bonus['text']
+                    first_bonus = merged_missile_velocity_bonus['bonuses'][0]
+                    first_modified_attr = first_bonus['attr_name']
+                    first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                    part += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    for i in range(1, len(merged_missile_velocity_bonus['bonuses'])):
+                        bonus_info = merged_missile_velocity_bonus['bonuses'][i]
+                        modified_attr = bonus_info['attr_name']
+                        modifying_attr = bonus_info.get('modifying_attr_name', '')
+                        indent = len(bonus_text) + 1
+                        part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+                # 如果有合并的后勤无人机传输量加成（三合一），特殊格式输出
+                if merged_logistics_drone_bonus:
+                    bonus_text = merged_logistics_drone_bonus['text']
+                    first_bonus = merged_logistics_drone_bonus['bonuses'][0]
+                    first_modified_attr = first_bonus['attr_name']
+                    first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                    part += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    for i in range(1, len(merged_logistics_drone_bonus['bonuses'])):
+                        bonus_info = merged_logistics_drone_bonus['bonuses'][i]
+                        modified_attr = bonus_info['attr_name']
+                        modifying_attr = bonus_info.get('modifying_attr_name', '')
+                        indent = len(bonus_text) + 1
+                        part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+                # 如果有合并的远程感应抑阻器效果加成（二合一），特殊格式输出
+                if merged_sensor_dampener_bonus:
+                    bonus_text = merged_sensor_dampener_bonus['text']
+                    first_bonus = merged_sensor_dampener_bonus['bonuses'][0]
+                    first_modified_attr = first_bonus['attr_name']
+                    first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                    part += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    for i in range(1, len(merged_sensor_dampener_bonus['bonuses'])):
+                        bonus_info = merged_sensor_dampener_bonus['bonuses'][i]
+                        modified_attr = bonus_info['attr_name']
+                        modifying_attr = bonus_info.get('modifying_attr_name', '')
+                        indent = len(bonus_text) + 1
+                        part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+                # 如果有合并的护盾抗性加成（四合一），特殊格式输出
+                if merged_shield_resistance_bonus:
+                    bonus_text = merged_shield_resistance_bonus['text']
+                    first_bonus = merged_shield_resistance_bonus['bonuses'][0]
+                    first_modified_attr = first_bonus['attr_name']
+                    first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                    part += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    for i in range(1, len(merged_shield_resistance_bonus['bonuses'])):
+                        bonus_info = merged_shield_resistance_bonus['bonuses'][i]
+                        modified_attr = bonus_info['attr_name']
+                        modifying_attr = bonus_info.get('modifying_attr_name', '')
+                        indent = len(bonus_text) + 1
+                        part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+                # 如果有合并的ECM目标干扰器强度加成（四合一），特殊格式输出
+                if merged_ecm_strength_bonus:
+                    bonus_text = merged_ecm_strength_bonus['text']
+                    first_bonus = merged_ecm_strength_bonus['bonuses'][0]
+                    first_modified_attr = first_bonus['attr_name']
+                    first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                    part += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    for i in range(1, len(merged_ecm_strength_bonus['bonuses'])):
+                        bonus_info = merged_ecm_strength_bonus['bonuses'][i]
+                        modified_attr = bonus_info['attr_name']
+                        modifying_attr = bonus_info.get('modifying_attr_name', '')
+                        indent = len(bonus_text) + 1
+                        part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+                # 如果有合并的远程护盾回充增量器加成（二合一），特殊格式输出
+                if merged_remote_shield_bonus:
+                    bonus_text = merged_remote_shield_bonus['text']
+                    first_bonus = merged_remote_shield_bonus['bonuses'][0]
+                    first_modified_attr = first_bonus['attr_name']
+                    first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                    part += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    for i in range(1, len(merged_remote_shield_bonus['bonuses'])):
+                        bonus_info = merged_remote_shield_bonus['bonuses'][i]
+                        modified_attr = bonus_info['attr_name']
+                        modifying_attr = bonus_info.get('modifying_attr_name', '')
+                        indent = len(bonus_text) + 1
+                        part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+                # 如果有合并的远程电容传输装置传输量加成和旗舰级远程装甲维修器维修量加成（二合一），特殊格式输出
+                if merged_remote_capital_armor_bonus:
+                    bonus_text = merged_remote_capital_armor_bonus['text']
+                    first_bonus = merged_remote_capital_armor_bonus['bonuses'][0]
+                    first_modified_attr = first_bonus['attr_name']
+                    first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                    part += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                    for i in range(1, len(merged_remote_capital_armor_bonus['bonuses'])):
+                        bonus_info = merged_remote_capital_armor_bonus['bonuses'][i]
+                        modified_attr = bonus_info['attr_name']
+                        modifying_attr = bonus_info.get('modifying_attr_name', '')
                         indent = len(bonus_text) + 1
                         part += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
                 part += "\n"
@@ -1578,14 +3889,40 @@ class EveESIPlugin(Star):
             unique_bonuses_list, merged_weapon_disruption_bonus = self._merge_weapon_disruption_bonuses(unique_bonuses_list)
             unique_bonuses_list, merged_range_falloff_bonus = self._merge_weapon_range_falloff_bonuses(unique_bonuses_list)
             unique_bonuses_list, merged_target_painter_bonus = self._merge_target_painter_cpu_activation_bonuses(unique_bonuses_list)
+            unique_bonuses_list, merged_propulsion_overload_bonus = self._merge_propulsion_overload_bonuses(unique_bonuses_list)
+            unique_bonuses_list, merged_interdiction_nullifier_bonus = self._merge_interdiction_nullifier_bonuses(unique_bonuses_list)
+            unique_bonuses_list, merged_light_missile_bonus = self._merge_light_missile_damage_bonuses(unique_bonuses_list)
+            unique_bonuses_list, merged_neutralizer_range_bonus = self._merge_neutralizer_range_bonuses(unique_bonuses_list)
+            unique_bonuses_list, merged_neutralizer_falloff_bonus = self._merge_neutralizer_falloff_bonuses(unique_bonuses_list)
+            unique_bonuses_list, merged_neutralizer_amount_bonus = self._merge_neutralizer_amount_bonuses(unique_bonuses_list)
+            unique_bonuses_list, merged_nosferatu_range_amount_bonus = self._merge_nosferatu_range_amount_bonuses(unique_bonuses_list)
+            unique_bonuses_list, merged_remote_armor_bonus = self._merge_remote_armor_repair_bonuses(unique_bonuses_list)
+            unique_bonuses_list, merged_drone_damage_hp_bonus = self._merge_drone_damage_hp_bonuses(unique_bonuses_list)
+            unique_bonuses_list, merged_small_energy_range_bonus = self._merge_small_energy_turret_range_bonuses(unique_bonuses_list)
+            unique_bonuses_list, merged_remote_armor_range_bonus = self._merge_remote_armor_repair_range_bonuses(unique_bonuses_list)
+            unique_bonuses_list, merged_medium_energy_range_bonus = self._merge_medium_energy_turret_range_bonuses(unique_bonuses_list)
+            unique_bonuses_list, merged_weapon_bonus, merged_torpedo_bonus, merged_cruise_bonus, merged_rapid_bonus, merged_heavy_assault_heavy_bonus, merged_heavy_assault_bonus, merged_heavy_bonus, merged_rocket_bonus, merged_rocket_partial_bonus, merged_xl_cruise_torpedo_bonus, merged_lance_bonus = self._merge_weapon_damage_bonuses(unique_bonuses_list)
+            unique_bonuses_list, merged_command_burst, merged_info_full, merged_armor_full, merged_info_duration, merged_armor_duration, merged_info_buffs, merged_armor_buffs = self._merge_command_burst_bonuses(unique_bonuses_list)
+            unique_bonuses_list, merged_missile_velocity_bonus = self._merge_missile_velocity_bonuses(unique_bonuses_list)
+            # 判断是否有航空母舰操作，用于后勤无人机传输量加成计算
+            has_carrier_for_logistics_drone = any('航空母舰操作' in skill_key for skill_key in skill_bonuses_dict.keys())
+            unique_bonuses_list, merged_logistics_drone_bonus = self._merge_logistics_drone_bonuses(unique_bonuses_list, '航空母舰操作' if has_carrier_for_logistics_drone else None)
+            unique_bonuses_list, merged_sensor_dampener_bonus = self._merge_sensor_dampener_bonuses(unique_bonuses_list)
+            unique_bonuses_list, merged_shield_resistance_bonus = self._merge_shield_resistance_bonuses(unique_bonuses_list)
+            unique_bonuses_list, merged_ecm_strength_bonus = self._merge_ecm_strength_bonuses(unique_bonuses_list)
+            unique_bonuses_list, merged_remote_shield_bonus = self._merge_remote_shield_booster_bonuses(unique_bonuses_list)
+            unique_bonuses_list, merged_remote_capital_armor_bonus = self._merge_remote_capital_armor_bonuses(unique_bonuses_list)
             
             for bonus_dict in unique_bonuses_list:
                 bonus_text = bonus_dict['text']
+                # 如果描述包含"不显示"，则跳过
+                if '不显示' in bonus_text:
+                    continue
                 effect_name = bonus_dict['effect_name']
                 # 新格式: effect_name|modified_attr|modifying_attr
                 modified_attr = bonus_dict['attr_name']
                 modifying_attr = bonus_dict.get('modifying_attr_name', '')
-                result += f"{bonus_text}({effect_name}|{modified_attr}|{modifying_attr})\n"
+                result += f"{bonus_text} ({effect_name}|{modified_attr}|{modifying_attr})\n"
             
             # 输出合并的装甲抗性加成
             if merged_armor_bonus:
@@ -1593,7 +3930,7 @@ class EveESIPlugin(Star):
                 first_bonus = merged_armor_bonus['bonuses'][0]
                 first_modified_attr = first_bonus['attr_name']
                 first_modifying_attr = first_bonus.get('modifying_attr_name', '')
-                result += f"{bonus_text}({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                result += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
                 for i in range(1, len(merged_armor_bonus['bonuses'])):
                     bonus_info = merged_armor_bonus['bonuses'][i]
                     modified_attr = bonus_info['attr_name']
@@ -1607,7 +3944,7 @@ class EveESIPlugin(Star):
                 first_bonus = merged_weapon_disruption_bonus['bonuses'][0]
                 first_modified_attr = first_bonus['attr_name']
                 first_modifying_attr = first_bonus.get('modifying_attr_name', '')
-                result += f"{bonus_text}({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                result += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
                 for i in range(1, len(merged_weapon_disruption_bonus['bonuses'])):
                     bonus_info = merged_weapon_disruption_bonus['bonuses'][i]
                     modified_attr = bonus_info['attr_name']
@@ -1621,7 +3958,7 @@ class EveESIPlugin(Star):
                 first_bonus = merged_range_falloff_bonus['bonuses'][0]
                 first_modified_attr = first_bonus['attr_name']
                 first_modifying_attr = first_bonus.get('modifying_attr_name', '')
-                result += f"{bonus_text}({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                result += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
                 for i in range(1, len(merged_range_falloff_bonus['bonuses'])):
                     bonus_info = merged_range_falloff_bonus['bonuses'][i]
                     modified_attr = bonus_info['attr_name']
@@ -1635,7 +3972,7 @@ class EveESIPlugin(Star):
                 first_bonus = merged_target_painter_bonus['bonuses'][0]
                 first_modified_attr = first_bonus['attr_name']
                 first_modifying_attr = first_bonus.get('modifying_attr_name', '')
-                result += f"{bonus_text}({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                result += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
                 for i in range(1, len(merged_target_painter_bonus['bonuses'])):
                     bonus_info = merged_target_painter_bonus['bonuses'][i]
                     modified_attr = bonus_info['attr_name']
@@ -1643,6 +3980,614 @@ class EveESIPlugin(Star):
                     indent = len(bonus_text) + 1
                     result += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
             
+            # 输出合并的加力燃烧器和微型跃迁推进器过载效果加成
+            if merged_propulsion_overload_bonus:
+                bonus_text = merged_propulsion_overload_bonus['text']
+                first_bonus = merged_propulsion_overload_bonus['bonuses'][0]
+                first_modified_attr = first_bonus['attr_name']
+                first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                result += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                for i in range(1, len(merged_propulsion_overload_bonus['bonuses'])):
+                    bonus_info = merged_propulsion_overload_bonus['bonuses'][i]
+                    modified_attr = bonus_info['attr_name']
+                    modifying_attr = bonus_info.get('modifying_attr_name', '')
+                    indent = len(bonus_text) + 1
+                    result += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+            
+            # 输出合并的拦截失效装置三个加成
+            if merged_interdiction_nullifier_bonus:
+                bonus_text = merged_interdiction_nullifier_bonus['text']
+                first_bonus = merged_interdiction_nullifier_bonus['bonuses'][0]
+                first_modified_attr = first_bonus['attr_name']
+                first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                result += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                for i in range(1, len(merged_interdiction_nullifier_bonus['bonuses'])):
+                    bonus_info = merged_interdiction_nullifier_bonus['bonuses'][i]
+                    modified_attr = bonus_info['attr_name']
+                    modifying_attr = bonus_info.get('modifying_attr_name', '')
+                    indent = len(bonus_text) + 1
+                    result += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+            
+            # 输出合并的轻型导弹和火箭四种伤害加成
+            if merged_light_missile_bonus:
+                bonus_text = merged_light_missile_bonus['text']
+                first_bonus = merged_light_missile_bonus['bonuses'][0]
+                first_modified_attr = first_bonus['attr_name']
+                first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                result += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                for i in range(1, len(merged_light_missile_bonus['bonuses'])):
+                    bonus_info = merged_light_missile_bonus['bonuses'][i]
+                    modified_attr = bonus_info['attr_name']
+                    modifying_attr = bonus_info.get('modifying_attr_name', '')
+                    indent = len(bonus_text) + 1
+                    result += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+            
+            # 输出合并的能量中和器和掠能器最佳射程加成
+            if merged_neutralizer_range_bonus:
+                bonus_text = merged_neutralizer_range_bonus['text']
+                first_bonus = merged_neutralizer_range_bonus['bonuses'][0]
+                first_modified_attr = first_bonus['attr_name']
+                first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                result += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                for i in range(1, len(merged_neutralizer_range_bonus['bonuses'])):
+                    bonus_info = merged_neutralizer_range_bonus['bonuses'][i]
+                    modified_attr = bonus_info['attr_name']
+                    modifying_attr = bonus_info.get('modifying_attr_name', '')
+                    indent = len(bonus_text) + 1
+                    result += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+            
+            # 输出合并的能量中和器和掠能器失准范围加成
+            if merged_neutralizer_falloff_bonus:
+                bonus_text = merged_neutralizer_falloff_bonus['text']
+                first_bonus = merged_neutralizer_falloff_bonus['bonuses'][0]
+                first_modified_attr = first_bonus['attr_name']
+                first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                result += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                for i in range(1, len(merged_neutralizer_falloff_bonus['bonuses'])):
+                    bonus_info = merged_neutralizer_falloff_bonus['bonuses'][i]
+                    modified_attr = bonus_info['attr_name']
+                    modifying_attr = bonus_info.get('modifying_attr_name', '')
+                    indent = len(bonus_text) + 1
+                    result += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+            
+            # 输出合并的掠能器和能量中和器吸取量加成
+            if merged_neutralizer_amount_bonus:
+                bonus_text = merged_neutralizer_amount_bonus['text']
+                first_bonus = merged_neutralizer_amount_bonus['bonuses'][0]
+                first_modified_attr = first_bonus['attr_name']
+                first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                result += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                for i in range(1, len(merged_neutralizer_amount_bonus['bonuses'])):
+                    bonus_info = merged_neutralizer_amount_bonus['bonuses'][i]
+                    modified_attr = bonus_info['attr_name']
+                    modifying_attr = bonus_info.get('modifying_attr_name', '')
+                    indent = len(bonus_text) + 1
+                    result += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+            
+            # 输出合并的掠能器吸取量和有效距离加成
+            if merged_nosferatu_range_amount_bonus:
+                bonus_text = merged_nosferatu_range_amount_bonus['text']
+                first_bonus = merged_nosferatu_range_amount_bonus['bonuses'][0]
+                first_modified_attr = first_bonus['attr_name']
+                first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                result += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                for i in range(1, len(merged_nosferatu_range_amount_bonus['bonuses'])):
+                    bonus_info = merged_nosferatu_range_amount_bonus['bonuses'][i]
+                    modified_attr = bonus_info['attr_name']
+                    modifying_attr = bonus_info.get('modifying_attr_name', '')
+                    indent = len(bonus_text) + 1
+                    result += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+            
+            # 输出合并的远程装甲维修器运转周期和启动消耗
+            if merged_remote_armor_bonus:
+                bonus_text = merged_remote_armor_bonus['text']
+                first_bonus = merged_remote_armor_bonus['bonuses'][0]
+                first_modified_attr = first_bonus['attr_name']
+                first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                result += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                for i in range(1, len(merged_remote_armor_bonus['bonuses'])):
+                    bonus_info = merged_remote_armor_bonus['bonuses'][i]
+                    modified_attr = bonus_info['attr_name']
+                    modifying_attr = bonus_info.get('modifying_attr_name', '')
+                    indent = len(bonus_text) + 1
+                    result += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+            
+            # 输出合并的无人机伤害和HP加成
+            if merged_drone_damage_hp_bonus:
+                bonus_text = merged_drone_damage_hp_bonus['text']
+                first_bonus = merged_drone_damage_hp_bonus['bonuses'][0]
+                first_modified_attr = first_bonus['attr_name']
+                first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                result += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                for i in range(1, len(merged_drone_damage_hp_bonus['bonuses'])):
+                    bonus_info = merged_drone_damage_hp_bonus['bonuses'][i]
+                    modified_attr = bonus_info['attr_name']
+                    modifying_attr = bonus_info.get('modifying_attr_name', '')
+                    indent = len(bonus_text) + 1
+                    result += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+            
+            # 输出合并的小型能量炮台最佳射程和失准范围加成
+            if merged_small_energy_range_bonus:
+                bonus_text = merged_small_energy_range_bonus['text']
+                first_bonus = merged_small_energy_range_bonus['bonuses'][0]
+                first_modified_attr = first_bonus['attr_name']
+                first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                result += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                for i in range(1, len(merged_small_energy_range_bonus['bonuses'])):
+                    bonus_info = merged_small_energy_range_bonus['bonuses'][i]
+                    modified_attr = bonus_info['attr_name']
+                    modifying_attr = bonus_info.get('modifying_attr_name', '')
+                    indent = len(bonus_text) + 1
+                    result += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+            
+            # 输出合并的远程装甲维修器最佳射程和失准范围加成
+            if merged_remote_armor_range_bonus:
+                bonus_text = merged_remote_armor_range_bonus['text']
+                first_bonus = merged_remote_armor_range_bonus['bonuses'][0]
+                first_modified_attr = first_bonus['attr_name']
+                first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                result += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                for i in range(1, len(merged_remote_armor_range_bonus['bonuses'])):
+                    bonus_info = merged_remote_armor_range_bonus['bonuses'][i]
+                    modified_attr = bonus_info['attr_name']
+                    modifying_attr = bonus_info.get('modifying_attr_name', '')
+                    indent = len(bonus_text) + 1
+                    result += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+            
+            # 输出合并的中型能量炮台最佳射程和失准范围加成
+            if merged_medium_energy_range_bonus:
+                bonus_text = merged_medium_energy_range_bonus['text']
+                first_bonus = merged_medium_energy_range_bonus['bonuses'][0]
+                first_modified_attr = first_bonus['attr_name']
+                first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                result += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                for i in range(1, len(merged_medium_energy_range_bonus['bonuses'])):
+                    bonus_info = merged_medium_energy_range_bonus['bonuses'][i]
+                    modified_attr = bonus_info['attr_name']
+                    modifying_attr = bonus_info.get('modifying_attr_name', '')
+                    indent = len(bonus_text) + 1
+                    result += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+            
+            # 输出合并的武器伤害加成（十三合一）
+            if merged_weapon_bonus:
+                bonus_text = merged_weapon_bonus['text']
+                first_bonus = merged_weapon_bonus['bonuses'][0]
+                first_modified_attr = first_bonus['attr_name']
+                first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                result += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                for i in range(1, len(merged_weapon_bonus['bonuses'])):
+                    bonus_info = merged_weapon_bonus['bonuses'][i]
+                    modified_attr = bonus_info['attr_name']
+                    modifying_attr = bonus_info.get('modifying_attr_name', '')
+                    indent = len(bonus_text) + 1
+                    result += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+            
+            # 输出合并的鱼雷伤害加成（四合一）
+            if merged_torpedo_bonus:
+                bonus_text = merged_torpedo_bonus['text']
+                first_bonus = merged_torpedo_bonus['bonuses'][0]
+                first_modified_attr = first_bonus['attr_name']
+                first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                result += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                for i in range(1, len(merged_torpedo_bonus['bonuses'])):
+                    bonus_info = merged_torpedo_bonus['bonuses'][i]
+                    modified_attr = bonus_info['attr_name']
+                    modifying_attr = bonus_info.get('modifying_attr_name', '')
+                    indent = len(bonus_text) + 1
+                    result += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+            
+            # 输出合并的巡航导弹伤害加成（四合一）
+            if merged_cruise_bonus:
+                bonus_text = merged_cruise_bonus['text']
+                first_bonus = merged_cruise_bonus['bonuses'][0]
+                first_modified_attr = first_bonus['attr_name']
+                first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                result += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                for i in range(1, len(merged_cruise_bonus['bonuses'])):
+                    bonus_info = merged_cruise_bonus['bonuses'][i]
+                    modified_attr = bonus_info['attr_name']
+                    modifying_attr = bonus_info.get('modifying_attr_name', '')
+                    indent = len(bonus_text) + 1
+                    result += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+            
+            # 输出合并的重型快速导弹伤害加成（四合一）
+            if merged_rapid_bonus:
+                bonus_text = merged_rapid_bonus['text']
+                first_bonus = merged_rapid_bonus['bonuses'][0]
+                first_modified_attr = first_bonus['attr_name']
+                first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                result += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                for i in range(1, len(merged_rapid_bonus['bonuses'])):
+                    bonus_info = merged_rapid_bonus['bonuses'][i]
+                    modified_attr = bonus_info['attr_name']
+                    modifying_attr = bonus_info.get('modifying_attr_name', '')
+                    indent = len(bonus_text) + 1
+                    result += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+            
+            # 输出合并的火箭伤害加成（四合一）
+            if merged_rocket_bonus:
+                bonus_text = merged_rocket_bonus['text']
+                first_bonus = merged_rocket_bonus['bonuses'][0]
+                first_modified_attr = first_bonus['attr_name']
+                first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                result += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                for i in range(1, len(merged_rocket_bonus['bonuses'])):
+                    bonus_info = merged_rocket_bonus['bonuses'][i]
+                    modified_attr = bonus_info['attr_name']
+                    modifying_attr = bonus_info.get('modifying_attr_name', '')
+                    indent = len(bonus_text) + 1
+                    result += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+            
+            # 输出合并的火箭电磁、动能、热能伤害加成（三合一）
+            if merged_rocket_partial_bonus:
+                bonus_text = merged_rocket_partial_bonus['text']
+                first_bonus = merged_rocket_partial_bonus['bonuses'][0]
+                first_modified_attr = first_bonus['attr_name']
+                first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                result += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                for i in range(1, len(merged_rocket_partial_bonus['bonuses'])):
+                    bonus_info = merged_rocket_partial_bonus['bonuses'][i]
+                    modified_attr = bonus_info['attr_name']
+                    modifying_attr = bonus_info.get('modifying_attr_name', '')
+                    indent = len(bonus_text) + 1
+                    result += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+            
+            # 输出合并的破坏型长枪伤害加成（四合一）
+            if merged_lance_bonus:
+                bonus_text = merged_lance_bonus['text']
+                first_bonus = merged_lance_bonus['bonuses'][0]
+                first_modified_attr = first_bonus['attr_name']
+                first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                result += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                for i in range(1, len(merged_lance_bonus['bonuses'])):
+                    bonus_info = merged_lance_bonus['bonuses'][i]
+                    modified_attr = bonus_info['attr_name']
+                    modifying_attr = bonus_info.get('modifying_attr_name', '')
+                    indent = len(bonus_text) + 1
+                    result += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+            
+            # 输出合并的重型导弹和重型攻击导弹伤害加成（八合一）
+            if merged_heavy_assault_heavy_bonus:
+                bonus_text = merged_heavy_assault_heavy_bonus['text']
+                first_bonus = merged_heavy_assault_heavy_bonus['bonuses'][0]
+                first_modified_attr = first_bonus['attr_name']
+                first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                result += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                for i in range(1, len(merged_heavy_assault_heavy_bonus['bonuses'])):
+                    bonus_info = merged_heavy_assault_heavy_bonus['bonuses'][i]
+                    modified_attr = bonus_info['attr_name']
+                    modifying_attr = bonus_info.get('modifying_attr_name', '')
+                    indent = len(bonus_text) + 1
+                    result += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+            
+            # 输出合并的重型攻击导弹伤害加成（四合一）
+            if merged_heavy_assault_bonus:
+                bonus_text = merged_heavy_assault_bonus['text']
+                first_bonus = merged_heavy_assault_bonus['bonuses'][0]
+                first_modified_attr = first_bonus['attr_name']
+                first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                result += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                for i in range(1, len(merged_heavy_assault_bonus['bonuses'])):
+                    bonus_info = merged_heavy_assault_bonus['bonuses'][i]
+                    modified_attr = bonus_info['attr_name']
+                    modifying_attr = bonus_info.get('modifying_attr_name', '')
+                    indent = len(bonus_text) + 1
+                    result += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+            
+            # 输出合并的重型导弹伤害加成（四合一）
+            if merged_heavy_bonus:
+                bonus_text = merged_heavy_bonus['text']
+                first_bonus = merged_heavy_bonus['bonuses'][0]
+                first_modified_attr = first_bonus['attr_name']
+                first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                result += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                for i in range(1, len(merged_heavy_bonus['bonuses'])):
+                    bonus_info = merged_heavy_bonus['bonuses'][i]
+                    modified_attr = bonus_info['attr_name']
+                    modifying_attr = bonus_info.get('modifying_attr_name', '')
+                    indent = len(bonus_text) + 1
+                    result += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+            
+            # 输出合并的超大型巡航导弹、超大型鱼雷和鱼雷伤害加成（十二合一）
+            if merged_xl_cruise_torpedo_bonus:
+                bonus_text = merged_xl_cruise_torpedo_bonus['text']
+                first_bonus = merged_xl_cruise_torpedo_bonus['bonuses'][0]
+                first_modified_attr = first_bonus['attr_name']
+                first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                result += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                for i in range(1, len(merged_xl_cruise_torpedo_bonus['bonuses'])):
+                    bonus_info = merged_xl_cruise_torpedo_bonus['bonuses'][i]
+                    modified_attr = bonus_info['attr_name']
+                    modifying_attr = bonus_info.get('modifying_attr_name', '')
+                    indent = len(bonus_text) + 1
+                    result += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+            
+            # 输出合并的导弹最大速度加成（二合一）
+            if merged_missile_velocity_bonus:
+                bonus_text = merged_missile_velocity_bonus['text']
+                first_bonus = merged_missile_velocity_bonus['bonuses'][0]
+                first_modified_attr = first_bonus['attr_name']
+                first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                result += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                for i in range(1, len(merged_missile_velocity_bonus['bonuses'])):
+                    bonus_info = merged_missile_velocity_bonus['bonuses'][i]
+                    modified_attr = bonus_info['attr_name']
+                    modifying_attr = bonus_info.get('modifying_attr_name', '')
+                    indent = len(bonus_text) + 1
+                    result += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+            
+            # 输出合并的后勤无人机传输量加成（三合一）
+            if merged_logistics_drone_bonus:
+                bonus_text = merged_logistics_drone_bonus['text']
+                first_bonus = merged_logistics_drone_bonus['bonuses'][0]
+                first_modified_attr = first_bonus['attr_name']
+                first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                result += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                for i in range(1, len(merged_logistics_drone_bonus['bonuses'])):
+                    bonus_info = merged_logistics_drone_bonus['bonuses'][i]
+                    modified_attr = bonus_info['attr_name']
+                    modifying_attr = bonus_info.get('modifying_attr_name', '')
+                    indent = len(bonus_text) + 1
+                    result += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+            
+            # 输出合并的远程感应抑阻器效果加成（二合一）
+            if merged_sensor_dampener_bonus:
+                bonus_text = merged_sensor_dampener_bonus['text']
+                first_bonus = merged_sensor_dampener_bonus['bonuses'][0]
+                first_modified_attr = first_bonus['attr_name']
+                first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                result += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                for i in range(1, len(merged_sensor_dampener_bonus['bonuses'])):
+                    bonus_info = merged_sensor_dampener_bonus['bonuses'][i]
+                    modified_attr = bonus_info['attr_name']
+                    modifying_attr = bonus_info.get('modifying_attr_name', '')
+                    indent = len(bonus_text) + 1
+                    result += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+            
+            # 输出合并的护盾抗性加成（四合一）
+            if merged_shield_resistance_bonus:
+                bonus_text = merged_shield_resistance_bonus['text']
+                first_bonus = merged_shield_resistance_bonus['bonuses'][0]
+                first_modified_attr = first_bonus['attr_name']
+                first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                result += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                for i in range(1, len(merged_shield_resistance_bonus['bonuses'])):
+                    bonus_info = merged_shield_resistance_bonus['bonuses'][i]
+                    modified_attr = bonus_info['attr_name']
+                    modifying_attr = bonus_info.get('modifying_attr_name', '')
+                    indent = len(bonus_text) + 1
+                    result += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+            
+            # 输出合并的ECM目标干扰器强度加成（四合一）
+            if merged_ecm_strength_bonus:
+                bonus_text = merged_ecm_strength_bonus['text']
+                first_bonus = merged_ecm_strength_bonus['bonuses'][0]
+                first_modified_attr = first_bonus['attr_name']
+                first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                result += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                for i in range(1, len(merged_ecm_strength_bonus['bonuses'])):
+                    bonus_info = merged_ecm_strength_bonus['bonuses'][i]
+                    modified_attr = bonus_info['attr_name']
+                    modifying_attr = bonus_info.get('modifying_attr_name', '')
+                    indent = len(bonus_text) + 1
+                    result += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+            
+            # 输出合并的远程护盾回充增量器加成（二合一）
+            if merged_remote_shield_bonus:
+                bonus_text = merged_remote_shield_bonus['text']
+                first_bonus = merged_remote_shield_bonus['bonuses'][0]
+                first_modified_attr = first_bonus['attr_name']
+                first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                result += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                for i in range(1, len(merged_remote_shield_bonus['bonuses'])):
+                    bonus_info = merged_remote_shield_bonus['bonuses'][i]
+                    modified_attr = bonus_info['attr_name']
+                    modifying_attr = bonus_info.get('modifying_attr_name', '')
+                    indent = len(bonus_text) + 1
+                    result += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+            
+            # 输出合并的远程电容传输装置传输量加成和旗舰级远程装甲维修器维修量加成（二合一）
+            if merged_remote_capital_armor_bonus:
+                bonus_text = merged_remote_capital_armor_bonus['text']
+                first_bonus = merged_remote_capital_armor_bonus['bonuses'][0]
+                first_modified_attr = first_bonus['attr_name']
+                first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                result += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                for i in range(1, len(merged_remote_capital_armor_bonus['bonuses'])):
+                    bonus_info = merged_remote_capital_armor_bonus['bonuses'][i]
+                    modified_attr = bonus_info['attr_name']
+                    modifying_attr = bonus_info.get('modifying_attr_name', '')
+                    indent = len(bonus_text) + 1
+                    result += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+            
+            # 输出合并的指挥脉冲波加成（十合一）
+            if merged_command_burst:
+                bonus_text = merged_command_burst['text']
+                first_bonus = merged_command_burst['bonuses'][0]
+                first_modified_attr = first_bonus['attr_name']
+                first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                result += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                for i in range(1, len(merged_command_burst['bonuses'])):
+                    bonus_info = merged_command_burst['bonuses'][i]
+                    modified_attr = bonus_info['attr_name']
+                    modifying_attr = bonus_info.get('modifying_attr_name', '')
+                    indent = len(bonus_text) + 1
+                    result += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+            
+            # 输出合并的信息战指挥脉冲波加成（五合一）
+            if merged_info_full:
+                bonus_text = merged_info_full['text']
+                first_bonus = merged_info_full['bonuses'][0]
+                first_modified_attr = first_bonus['attr_name']
+                first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                result += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                for i in range(1, len(merged_info_full['bonuses'])):
+                    bonus_info = merged_info_full['bonuses'][i]
+                    modified_attr = bonus_info['attr_name']
+                    modifying_attr = bonus_info.get('modifying_attr_name', '')
+                    indent = len(bonus_text) + 1
+                    result += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+            
+            # 输出合并的装甲指挥脉冲波加成（五合一）
+            if merged_armor_full:
+                bonus_text = merged_armor_full['text']
+                first_bonus = merged_armor_full['bonuses'][0]
+                first_modified_attr = first_bonus['attr_name']
+                first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                result += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                for i in range(1, len(merged_armor_full['bonuses'])):
+                    bonus_info = merged_armor_full['bonuses'][i]
+                    modified_attr = bonus_info['attr_name']
+                    modifying_attr = bonus_info.get('modifying_attr_name', '')
+                    indent = len(bonus_text) + 1
+                    result += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+            
+            # 输出合并的信息战指挥脉冲波强度加成（四合一）
+            if merged_info_buffs:
+                bonus_text = merged_info_buffs['text']
+                first_bonus = merged_info_buffs['bonuses'][0]
+                first_modified_attr = first_bonus['attr_name']
+                first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                result += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                for i in range(1, len(merged_info_buffs['bonuses'])):
+                    bonus_info = merged_info_buffs['bonuses'][i]
+                    modified_attr = bonus_info['attr_name']
+                    modifying_attr = bonus_info.get('modifying_attr_name', '')
+                    indent = len(bonus_text) + 1
+                    result += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+            
+            # 输出合并的装甲指挥脉冲波强度加成（四合一）
+            if merged_armor_buffs:
+                bonus_text = merged_armor_buffs['text']
+                first_bonus = merged_armor_buffs['bonuses'][0]
+                first_modified_attr = first_bonus['attr_name']
+                first_modifying_attr = first_bonus.get('modifying_attr_name', '')
+                result += f"{bonus_text} ({first_bonus['effect_name']}|{first_modified_attr}|{first_modifying_attr})\n"
+                for i in range(1, len(merged_armor_buffs['bonuses'])):
+                    bonus_info = merged_armor_buffs['bonuses'][i]
+                    modified_attr = bonus_info['attr_name']
+                    modifying_attr = bonus_info.get('modifying_attr_name', '')
+                    indent = len(bonus_text) + 1
+                    result += f"{' ' * indent}({bonus_info['effect_name']}|{modified_attr}|{modifying_attr})\n"
+            
+            # 如果舰船有突击护卫舰操作技能加成，添加固定特有加成
+            if '突击护卫舰操作' in skill_bonuses_dict:
+                result += "· 可以装配突击损伤控制装备\n"
+            
+            # 如果舰船有重型突击巡洋舰操作技能加成，添加固定特有加成
+            if '重型突击巡洋舰操作' in skill_bonuses_dict:
+                result += "· 可以装配突击损伤控制装备\n"
+            
+            # 如果舰船有重型拦截舰操作技能加成，添加固定特有加成
+            if '重型拦截舰操作' in skill_bonuses_dict:
+                result += "· 可以装配跃迁扰断力场发生器和诱导力场发生器\n"
+            
+            # 如果舰船有战略巡洋舰操作技能加成，添加固定特有加成
+            if any('战略巡洋舰操作' in skill_key for skill_key in skill_bonuses_dict.keys()):
+                result += "· 改装件从舰船上移除不会销毁\n"
+            
+            # 如果舰船有隐形特勤舰操作技能加成，添加固定特有加成
+            if '隐形特勤舰操作' in skill_bonuses_dict:
+                # 检查是否有炸弹伤害加成
+                has_bomb_bonus = False
+                for bonus_dict in skill_bonuses_dict['隐形特勤舰操作']:
+                    if '炸弹' in bonus_dict.get('text', ''):
+                        has_bomb_bonus = True
+                        break
+                
+                if has_bomb_bonus:
+                    result += "· 可以装备隐秘行动隐形装置、隐秘诱导力场发生器和炸弹发射器\n"
+                else:
+                    result += "· 可以装备隐秘行动隐形装置和隐秘诱导力场发生器\n"
+            
+            # 如果特有加成有指挥脉冲波效果范围加成，添加固定特有加成
+            has_command_burst_bonus = False
+            for bonus_dict in unique_bonuses_list:
+                if '指挥脉冲波效果范围加成' in bonus_dict.get('text', ''):
+                    has_command_burst_bonus = True
+                    break
+            if has_command_burst_bonus:
+                # 检查舰船类型，决定可以装配几个指挥脉冲波装备
+                has_command_ship = '指挥舰操作' in skill_bonuses_dict
+                has_carrier = any('航空母舰操作' in skill_key for skill_key in skill_bonuses_dict.keys())
+                has_titan = '泰坦操作' in skill_bonuses_dict
+                
+                if has_titan:
+                    result += "· 可以装配三个指挥脉冲波装备\n"
+                elif has_command_ship or has_carrier:
+                    result += "· 可以装配两个指挥脉冲波装备\n"
+                else:
+                    result += "· 可以装配一个指挥脉冲波装备\n"
+            
+            # 如果舰船有指挥驱逐舰操作技能加成，添加固定特有加成
+            if '指挥驱逐舰操作' in skill_bonuses_dict:
+                result += "· 可以装配微型跳跃力场发生器\n"
+                result += "· 可以装配一个指挥脉冲波装备\n"
+            
+            # 如果舰船包含航空母舰操作，且特有加成中有后勤无人机传输量加成，添加固定特有加成
+            has_carrier_for_logistics = any('航空母舰操作' in skill_key for skill_key in skill_bonuses_dict.keys())
+            if has_carrier_for_logistics:
+                has_logistics_drone_bonus = any('后勤无人机传输量加成' in bonus_dict.get('text', '') for bonus_dict in unique_bonuses_list)
+                if has_logistics_drone_bonus:
+                    result += "· 可以装配一个会战型紧急修复增强模块\n"
+                    result += "· 只能启用一个电容注电器装备\n"
+            
+            # 如果舰船有拦截舰操作技能加成，添加固定特有加成
+            if '拦截舰操作' in skill_bonuses_dict:
+                result += "· 可以安装拦截泡发射器\n"
+            
+            # 如果舰船有黑隐特勤舰操作技能加成，添加固定特有加成
+            if '黑隐特勤舰操作' in skill_bonuses_dict:
+                result += "· 可以装备诱导力场发生器、隐秘诱导力场发生器和隐秘跳跃通道发生器\n"
+                result += "75.00% 减少跳跃距离对产生跳跃疲劳的影响\n"
+            
+            # 如果舰船有掠夺舰操作技能加成，添加固定特有加成
+            if '掠夺舰操作' in skill_bonuses_dict:
+                result += "· 可以装配堡垒装备\n"
+            
+            # 如果舰船有无畏舰操作技能加成，添加固定特有加成
+            if any('无畏舰操作' in skill_key for skill_key in skill_bonuses_dict.keys()):
+                result += "· 可以装配一个会战装备\n"
+            
+            # 如果舰船有长枪无畏舰操作技能加成，添加固定特有加成
+            if any('长枪无畏舰操作' in skill_key for skill_key in skill_bonuses_dict.keys()):
+                result += "· 可以装配一个破坏型长枪\n"
+            
+            # 如果舰船是忏悔者级，添加战术驱逐舰模式加成
+            if '忏悔者级' in display_name or 'Confessor' in display_name:
+                result += "· 当战术驱逐舰启用三种模式中的任意一种会获得额外加成。每10秒钟只能切换一次模式。\n"
+                result += "· 防御模式\n"
+                result += "33.30% 启用防御模式后装甲抗性加成\n"
+                result += "33.30% 启用防御模式后信号半径降低\n"
+                result += "33.30% 启用防御模式时，远程装甲维修器的修复量提高，启动消耗降低。\n"
+                result += "· 高速模式\n"
+                result += "66.60% 启用高速模式后加力燃烧器和微型跃迁推进器的速度增量加成\n"
+                result += "33.30% 启用高速模式后惯性系数加成\n"
+                result += "· 狙击模式\n"
+                result += "66.60% 启用狙击模式后小型能量炮台最佳射程加成\n"
+                result += "33.30% 启用狙击模式后小型能量炮台伤害加成\n"
+                result += "100.00% 启用狙击模式后感应强度和锁定距离加成\n"
+                result += "66.60% 启用狙击模式后对敌方的感应抑阻器和武器扰断器的抗性提高\n"
+            
+            # 如果舰船有侦察舰操作技能加成，添加固定特有加成
+            if '侦察舰操作' in skill_bonuses_dict:
+                # 检查特有加成中是否有隐形装置重启延时降到
+                has_cloak_reactivation = False
+                for bonus_dict in unique_bonuses_list:
+                    if '隐形装置重启延时降到' in bonus_dict.get('text', ''):
+                        has_cloak_reactivation = True
+                        break
+                if has_cloak_reactivation:
+                    result += "· 可以装备隐秘行动隐形装置和隐秘诱导力场发生器\n"
+                else:
+                    result += "· 不能被定向扫描器探测到\n"
+            
+            result += "\n"
+        
+        # 如果舰船有侦察舰操作技能加成且没有特有加成，添加特有加成标题和固定加成
+        if '侦察舰操作' in skill_bonuses_dict and not unique_bonuses_list:
+            result += "特有加成：\n"
+            result += "· 不能被定向扫描器探测到\n"
             result += "\n"
         
         return result
@@ -1929,13 +4874,16 @@ class EveESIPlugin(Star):
                 yield event.plain_result("请在群组中使用此命令")
                 return
             
-            # 设置当前群聊的监控状态
-            self._set_group_monitor_enabled(group_id, True)
+            # 获取 unified_msg_origin
+            umo = event.unified_msg_origin
+            
+            # 设置当前群聊的监控状态（保存 group_id 和 umo）
+            self._set_group_monitor_enabled(group_id, True, umo)
             
             # 启动监控任务（如果还没启动）
             self._start_monitor_task()
             
-            yield event.plain_result(f"✅ 本群服务器状态监控已开启\n\n监控时间: 每天11:00-23:59\n检测间隔: 1分钟\n\n维护或开服时会自动发送通知")
+            yield event.plain_result(f"✅ 本群服务器状态监控已开启\n\n监控时间: 每天11:00开始\n检测间隔: 1分钟\n\n维护或开服时会自动发送通知")
         except Exception as e:
             logger.error(f"开启监控失败: {e}")
             yield event.plain_result(f"开启监控失败: {e}")

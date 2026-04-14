@@ -68,6 +68,24 @@ def load_effect_descriptions():
 # 严格按照 jianchuan.txt 中的定义，一个字符一个数字都不改
 SKILL_TYPE_RULES = {
     # 一、精英加成（eliteBonus）- 特殊舰船类型
+        '艾玛防御子系统': [
+        'subsystemBonusAmarrDefensive'
+    ],
+        '艾玛无畏舰操作': [
+        'shipBonusDreadnoughtA1',
+        'shipBonusDreadnoughtA2',
+        'shipBonusDreadnoughtA3',
+        'shipBonusDreadnoughtA4'
+    ],
+        '长枪无畏舰操作': [
+        'shipBonusAdvancedDreadnought1',
+        'shipBonusAdvancedDreadnought2'
+    ],
+        '艾玛航空母舰操作': [
+        'shipBonusForceAuxiliaryA1',
+        'shipBonusForceAuxiliaryA2',
+        'shipBonusForceAuxiliaryA4'
+    ],
     '突击护卫舰操作': [
         'eliteBonusGunship1', 'eliteBonusGunship2', 'eliteBonusGunships', 'eliteBonusAssaultShips1'
     ],
@@ -131,14 +149,13 @@ SKILL_TYPE_RULES = {
     '采矿驳船操作': [
         'eliteBonusBarge1', 'eliteBonusBarge2'
     ],
-    '暴乱者操作': [
-        'eliteBonusViolators1', 'eliteBonusViolators2', 'eliteBonusViolators3', 'eliteBonusViolators4', 'eliteBonusViolators5',
-        'eliteBonusViolatorsRole1', 'eliteBonusViolatorsRole2', 'eliteBonusViolatorsRole3'
+    '掠夺舰操作': [
+        'eliteBonusViolators1', 'eliteBonusViolators2', 'eliteBonusViolators3', 'eliteBonusViolators4', 'eliteBonusViolators5'
     ],
     '旗舰巡洋舰操作': [
         'eliteBonusFlagCruisers1'
     ],
-    '掠夺舰操作': [
+    '暴乱者操作': [
         'eliteBonusMarauder'
     ],
     
@@ -148,10 +165,17 @@ SKILL_TYPE_RULES = {
         'shipBonusAF', 'shipBonus1AF', 'shipBonus2AF', 'shipBonus3AF'
     ],
     '艾玛驱逐舰操作': [
-        'shipBonusAD1', 'shipBonusAD2', 'NavyDestroyerAmarr'
+        'shipBonusAD1', 'shipBonusAD2', 'NavyDestroyerAmarr',
+        'shipBonusNavyDestroyerAmarr1',
+        'shipBonusNavyDestroyerAmarr2',
+        'shipBonusNavyDestroyerAmarr3',
+        'shipBonusNavyDestroyerAmarr4',
+        'shipBonusNavyDestroyerAmarr5'
     ],
     '艾玛巡洋舰操作': [
-        'shipBonusAC', 'shipBonusAC2', 'shipBonusAC3'
+        'shipBonusAC', 'shipBonusAC2', 'shipBonusAC3',
+        'droneArmorDamageAmountBonus',
+        'droneShieldBonusBonus'
     ],
     '艾玛战列巡洋舰操作': [
         'shipBonusABC1', 'shipBonusABC2', 'shipBonusABC3'
@@ -165,7 +189,12 @@ SKILL_TYPE_RULES = {
         'shipBonusCF', 'shipBonusCF2', 'shipBonus3CF'
     ],
     '加达里驱逐舰操作': [
-        'shipBonusCD1', 'shipBonusCD2', 'NavyDestroyerCaldari'
+        'shipBonusCD1', 'shipBonusCD2', 'NavyDestroyerCaldari',
+        'shipBonusNavyDestroyerCaldari1',
+        'shipBonusNavyDestroyerCaldari2',
+        'shipBonusNavyDestroyerCaldari3',
+        'shipBonusNavyDestroyerCaldari4',
+        'shipBonusNavyDestroyerCaldari5'
     ],
     '加达里巡洋舰操作': [
         'shipBonusCC', 'shipBonusCC2', 'shipBonusCC3'
@@ -182,7 +211,12 @@ SKILL_TYPE_RULES = {
         'shipBonusGF', 'shipBonusGF2', 'shipBonus3GF'
     ],
     '盖伦特驱逐舰操作': [
-        'shipBonusGD1', 'shipBonusGD2', 'NavyDestroyerGallente'
+        'shipBonusGD1', 'shipBonusGD2', 'NavyDestroyerGallente',
+        'shipBonusNavyDestroyerGallente1',
+        'shipBonusNavyDestroyerGallente2',
+        'shipBonusNavyDestroyerGallente3',
+        'shipBonusNavyDestroyerGallente4',
+        'shipBonusNavyDestroyerGallente5'
     ],
     '盖伦特巡洋舰操作': [
         'shipBonusGC', 'shipBonusGC2', 'shipBonusGC3'
@@ -199,7 +233,12 @@ SKILL_TYPE_RULES = {
         'shipBonusMF', 'shipBonusMF2', 'shipBonus3MF'
     ],
     '米玛塔尔驱逐舰操作': [
-        'shipBonusMD1', 'shipBonusMD2', 'NavyDestroyerMinmatar'
+        'shipBonusMD1', 'shipBonusMD2', 'NavyDestroyerMinmatar',
+        'shipBonusNavyDestroyerMinmatar1',
+        'shipBonusNavyDestroyerMinmatar2',
+        'shipBonusNavyDestroyerMinmatar3',
+        'shipBonusNavyDestroyerMinmatar4',
+        'shipBonusNavyDestroyerMinmatar5'
     ],
     '米玛塔尔巡洋舰操作': [
         'shipBonusMC', 'shipBonusMC2'
@@ -213,28 +252,48 @@ SKILL_TYPE_RULES = {
     
     # 三、战术/战略舰船加成
     '艾玛战术驱逐舰操作': [
-        'TacticalDestroyerAmarr'
+        'TacticalDestroyerAmarr',
+        'shipBonusTacticalDestroyerAmarr1',
+        'shipBonusTacticalDestroyerAmarr2',
+        'shipBonusTacticalDestroyerAmarr3'
     ],
     '加达里战术驱逐舰操作': [
-        'TacticalDestroyerCaldari'
+        'TacticalDestroyerCaldari',
+        'shipBonusTacticalDestroyerCaldari1',
+        'shipBonusTacticalDestroyerCaldari2',
+        'shipBonusTacticalDestroyerCaldari3'
     ],
     '盖伦特战术驱逐舰操作': [
-        'TacticalDestroyerGallente'
+        'TacticalDestroyerGallente',
+        'shipBonusTacticalDestroyerGallente1',
+        'shipBonusTacticalDestroyerGallente2',
+        'shipBonusTacticalDestroyerGallente3'
     ],
     '米玛塔尔战术驱逐舰操作': [
-        'TacticalDestroyerMinmatar'
+        'TacticalDestroyerMinmatar',
+        'shipBonusTacticalDestroyerMinmatar1',
+        'shipBonusTacticalDestroyerMinmatar2',
+        'shipBonusTacticalDestroyerMinmatar3'
     ],
     '艾玛战略巡洋舰操作': [
-        'StrategicCruiserAmarr'
+        'StrategicCruiserAmarr',
+        'shipBonusStrategicCruiserAmarr1',
+        'shipBonusStrategicCruiserAmarr2'
     ],
     '加达里战略巡洋舰操作': [
-        'StrategicCruiserCaldari'
+        'StrategicCruiserCaldari',
+        'shipBonusStrategicCruiserCaldari1',
+        'shipBonusStrategicCruiserCaldari2'
     ],
     '盖伦特战略巡洋舰操作': [
-        'StrategicCruiserGallente'
+        'StrategicCruiserGallente',
+        'shipBonusStrategicCruiserGallente1',
+        'shipBonusStrategicCruiserGallente2'
     ],
     '米玛塔尔战略巡洋舰操作': [
-        'StrategicCruiserMinmatar'
+        'StrategicCruiserMinmatar',
+        'shipBonusStrategicCruiserMinmatar1',
+        'shipBonusStrategicCruiserMinmatar2'
     ],
 }
 
@@ -333,6 +392,17 @@ def get_effect_description(effect_name, modified_attr, bonus_value, operator=6, 
     
     # 根据 operator 格式化数值
     value = abs(bonus_value)
+    
+    # 特殊处理：强化舱隔壁结构值加成
+    # 将小数转换为百分比显示，例如 0.05 → 5.00%
+    if '强化舱隔壁结构值加成' in description:
+        percent = value * 100
+        return f"{percent:.2f}% {description}"
+    
+    # 特殊处理：无人机护盾容量加成
+    # 虽然 operator 是 2 (PreDiv)，但应该显示为百分比
+    if '无人机护盾容量加成' in description:
+        return f"{value:.2f}% {description}"
     
     if operator == 0:
         # PreAssignment: 0.0035→1-0.0035=99.65% 放在描述前边
